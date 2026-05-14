@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   username VARCHAR(80) NULL UNIQUE,
   email VARCHAR(120) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  rol ENUM('admin','docente','alumno','estudiante') NOT NULL DEFAULT 'alumno',
+  rol ENUM('admin','docente','alumno','estudiante','control') NOT NULL DEFAULT 'alumno',
   fecha_nacimiento DATE NULL,
   edad INT NULL,
   nivel VARCHAR(50) NULL,
@@ -84,3 +84,7 @@ CREATE TABLE IF NOT EXISTS reportes_alumno (
 INSERT INTO usuarios (nombre, username, email, password_hash, rol)
 SELECT 'Isac', 'iisac00001', 'isac@admin.local', '$2y$10$A9IydirDrqXMd4SQg/GaO.VP2eaN0KuaBQSVxwpOpyysixbS.E28W', 'admin'
 WHERE NOT EXISTS (SELECT 1 FROM usuarios WHERE email = 'isac@admin.local');
+
+INSERT INTO usuarios (nombre, username, email, password_hash, rol)
+SELECT 'Control', 'ccontrol00001', 'control@local', '$2y$10$hPM70QNLePdJsHRn/UAhg.uSejcgjjIm8Pe1zkdKVeKrYU0NjEh3S', 'control'
+WHERE NOT EXISTS (SELECT 1 FROM usuarios WHERE email = 'control@local');

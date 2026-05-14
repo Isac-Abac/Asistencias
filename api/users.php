@@ -36,6 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(false, 'Datos invalidos', null, 422);
     }
 
+    $target = $conn->prepare('SELECT rol FROM usuarios WHERE id = ? LIMIT 1');
+    $target->bind_param('i', $id);
+    $target->execute();
+    $t = $target->get_result()->fetch_assoc();
+    if (!$t) {
+        json_response(false, 'Usuario no encontrado', null, 404);
+    }
+    if ($t['rol'] === 'control') {
+        json_response(false, 'El usuario Control es exclusivo y no editable', null, 403);
+    }
+
     if (!only_letters_spaces($nombres) || !only_letters_spaces($apellidos)) {
         json_response(false, 'Nombres y apellidos solo aceptan letras y espacios', null, 422);
     }
@@ -63,6 +74,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) json_response(false, 'ID invalido', null, 422);
     if ($id === (int)$_SESSION['user']['id']) json_response(false, 'No puedes eliminar tu propio usuario', null, 422);
+
+    $target = $conn->prepare('SELECT rol FROM usuarios WHERE id = ? LIMIT 1');
+    $target->bind_param('i', $id);
+    $target->execute();
+    $t = $target->get_result()->fetch_assoc();
+    if (!$t) {
+        json_response(false, 'Usuario no encontrado', null, 404);
+    }
+    if ($t['rol'] === 'control') {
+        json_response(false, 'El usuario Control es exclusivo y no eliminable', null, 403);
+    }
 
     $stmt = $conn->prepare('DELETE FROM usuarios WHERE id = ?');
     $stmt->bind_param('i', $id);
