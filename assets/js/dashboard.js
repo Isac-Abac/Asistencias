@@ -81,6 +81,22 @@ function renderUsers(){ const q=(document.getElementById('userSearchName')?.valu
 async function showUserQr(user){ const qrId='qrUserBox'; await Swal.fire({ title:`QR de ${user.username}`, html:`<div id="${qrId}" style="display:flex;justify-content:center;margin:8px 0"></div><button id="saveQrBtn" class="swal2-confirm swal2-styled" style="margin-top:8px">Guardar</button>`, showConfirmButton:false, didOpen:()=>{ const box=document.getElementById(qrId); box.innerHTML=''; new QRCode(box,{text:user.qr_payload||JSON.stringify(user),width:220,height:220}); document.getElementById('saveQrBtn').addEventListener('click',()=>{ const img=box.querySelector('img')||box.querySelector('canvas'); if(!img) return; const url=img.tagName.toLowerCase()==='img'?img.src:img.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`${user.username||'usuario'}-qr.png`; a.click();}); }}); }
 
 function renderGrades(){ const tb=document.querySelector('#gradesTable tbody'); if(!tb) return; tb.innerHTML=''; gradesCache.forEach(g=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${g.id}</td><td>${g.nivel||''}</td><td>${g.grado_mostrar||g.nombre||''}</td><td>${g.seccion||''}</td><td>${g.cupos??''}</td><td>${g.docente_guia||''}</td>`; tb.appendChild(tr); }); }
+function updateClassSecciones(){
+  const classSeccion=document.getElementById('classSeccion');
+  const nivelSel = document.getElementById('classNivel')?.value || '';
+  const gradoSel = document.getElementById('classGrado')?.value || '';
+  if (!classSeccion) return;
+  classSeccion.innerHTML = '<option value="">Seccion</option>';
+  if (gradesCache.length && nivelSel && gradoSel) {
+    const secs = [...new Set(
+      gradesCache
+        .filter(g => g.nivel === nivelSel && g.nombre === gradoSel)
+        .map(g => String(g.seccion || '').trim().toUpperCase())
+        .filter(Boolean)
+    )].sort();
+    secs.forEach(s => { const op=document.createElement('option'); op.value=s; op.textContent=s; classSeccion.appendChild(op); });
+  }
+}
 
 function hasGradeBySeccion(nivel, grado, seccion) {
   const sec = String(seccion || '').trim().toUpperCase();
@@ -125,21 +141,24 @@ function updateGradeLocks() {
 
 function fillDynamic(){
   const repAlumno=document.getElementById('repAlumno'); if(repAlumno){ repAlumno.innerHTML='<option value="">Nombre de alumno</option>'; usersCache.filter(u=>u.rol==='alumno'||u.rol==='estudiante').forEach(a=>{const op=document.createElement('option'); op.value=a.id; op.textContent=a.nombre; repAlumno.appendChild(op);}); }
-  const classDoc=document.getElementById('classDocente'); if(classDoc){ classDoc.innerHTML='<option value="">Docente asignado</option>'; usersCache.filter(u=>u.rol==='docente').forEach(d=>{const op=document.createElement('option'); op.value=d.id; op.textContent=`${d.nombre} (${d.email})`; classDoc.appendChild(op);}); }
   const gradeDoc=document.getElementById('gradeDocenteGuia'); if(gradeDoc){ gradeDoc.innerHTML='<option value="">Docente guia</option>'; usersCache.filter(u=>u.rol==='docente').forEach(d=>{const op=document.createElement('option'); op.value=d.id; op.textContent=`${d.nombre} (${d.email})`; gradeDoc.appendChild(op);}); }
   const alumnoClase=document.getElementById('alumnoClase'); if(alumnoClase){ alumnoClase.innerHTML='<option value="">Nombre de la clase</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; op.dataset.cupos=c.cupos_disponibles??''; alumnoClase.appendChild(op);}); }
   const teacherClass=document.getElementById('tRepClase'); if(teacherClass){ teacherClass.innerHTML='<option value="">Todas / Seleccione</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; teacherClass.appendChild(op);}); }
   const reportClass=document.getElementById('reportClaseDocente'); if(reportClass){ reportClass.innerHTML='<option value="">Seleccione clase</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; reportClass.appendChild(op);}); }
   const controlClase=document.getElementById('controlClase'); if(controlClase){ controlClase.innerHTML='<option value="">Seleccione clase</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; controlClase.appendChild(op);}); }
   const classGrado=document.getElementById('classGrado');
+  const nivelSel = document.getElementById('classNivel')?.value || '';
+  const gradoSelPrev = document.getElementById('classGrado')?.value || '';
   if(classGrado){
     classGrado.innerHTML='<option value="">Grado</option>';
     if(gradesCache.length){
-      gradesCache.forEach(g=>{ const op=document.createElement('option'); op.value=g.nombre; op.textContent=`${g.nombre} (${g.nivel})`; classGrado.appendChild(op); });
+      gradesCache.filter(g => !nivelSel || g.nivel===nivelSel).forEach(g=>{ const op=document.createElement('option'); op.value=g.nombre; op.textContent=`${g.grado_mostrar||g.nombre} (${g.nivel})`; classGrado.appendChild(op); });
     } else {
       GRADOS.forEach(v=>{ const op=document.createElement('option'); op.value=v; op.textContent=v; classGrado.appendChild(op); });
     }
+    if (gradoSelPrev) classGrado.value = gradoSelPrev;
   }
+  updateClassSecciones();
   fillSimpleSelect('repGrado',GRADOS,'Grado'); fillSimpleSelect('repNivel',NIVELES,'Nivel'); fillSimpleSelect('repSeccion',SECCIONES,'Seccion');
   updateGradeLocks();
 }
@@ -252,6 +271,8 @@ document.getElementById('loadUsersBtn')?.addEventListener('click', loadUsers);
 document.getElementById('userSearchName')?.addEventListener('input',renderUsers);
 document.getElementById('adminRol')?.addEventListener('change',()=>{ resetByRoleChange(); toggleRoleFields(); });
 document.getElementById('gradeNivel')?.addEventListener('change',()=>{ resetByNivelChange(); toggleGradeFields(); });
+document.getElementById('classNivel')?.addEventListener('change',fillDynamic);
+document.getElementById('classGrado')?.addEventListener('change',updateClassSecciones);
 document.getElementById('gradeSeccion')?.addEventListener('input',()=>{ updateGradeLocks(); });
 document.getElementById('gradeCarrera')?.addEventListener('input',()=>{ updateGradeLocks(); });
 document.getElementById('adminNombres')?.addEventListener('input',e=>{ e.target.value=sanitizeLetters(e.target.value); const u=document.getElementById('adminUsername'); if(u) u.value=genUserPreview(document.getElementById('adminNombres').value,document.getElementById('adminApellidos').value);});
@@ -270,7 +291,7 @@ document.querySelector('#usersTable')?.addEventListener('click', async (e)=>{
 
 document.getElementById('adminCreateUserForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const rol=document.getElementById('adminRol').value; const payload={nombres:document.getElementById('adminNombres').value.trim(),apellidos:document.getElementById('adminApellidos').value.trim(),email:document.getElementById('adminEmail').value.trim(),password:document.getElementById('adminPass').value,rol}; if(rol==='alumno'){ payload.fecha_nacimiento=document.getElementById('alumnoFechaNac').value; payload.nivel=document.getElementById('alumnoNivel').value; payload.seccion=document.getElementById('alumnoSeccion').value; payload.ciclo_escolar=document.getElementById('alumnoCiclo').value; payload.clase_id=Number(document.getElementById('alumnoClase').value);} if(rol==='docente'){ payload.fecha_nacimiento=document.getElementById('docenteFechaNac').value;} const r=await api('api/register.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); toggleRoleFields(); await Promise.all([loadUsers(),loadClasses()]); switchAdminView('users'); alertOk(`${r.message}. Usuario: ${r.data?.username||''}`); });
 
-document.getElementById('adminClassForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={nombre:document.getElementById('classNombre').value,codigo:document.getElementById('classCodigo').value,horario:document.getElementById('classHorario').value,docente_id:Number(document.getElementById('classDocente').value),grado:document.getElementById('classGrado').value,nivel:document.getElementById('classNivel').value,seccion:document.getElementById('classSeccion').value,ciclo_escolar:document.getElementById('classCiclo').value,cupos:Number(document.getElementById('classCupos').value)}; const r=await api('api/classes.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); await loadClasses(); alertOk(r.message); });
+document.getElementById('adminClassForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={nivel:document.getElementById('classNivel').value,grado:document.getElementById('classGrado').value,seccion:document.getElementById('classSeccion').value.trim().toUpperCase(),nombre:document.getElementById('classNombre').value.trim(),dia:document.getElementById('classDia').value,horario:document.getElementById('classHorario').value}; const r=await api('api/classes.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); await loadClasses(); alertOk(r.message); });
 document.getElementById('adminGradeForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={nivel:document.getElementById('gradeNivel').value,grado_primaria:document.getElementById('gradePrimaria').value,grado_basico:document.getElementById('gradeBasico').value,grado_diversificado:document.getElementById('gradeDiversificado').value,carrera:document.getElementById('gradeCarrera').value.trim(),seccion:document.getElementById('gradeSeccion').value.trim(),cupos:Number(document.getElementById('gradeCupos').value),docente_guia_id:Number(document.getElementById('gradeDocenteGuia').value)}; const r=await api('api/grades.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); toggleGradeFields(); await loadGrades(); alertOk(r.message); });
 document.getElementById('reportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const p=new URLSearchParams(); const f=document.getElementById('repFecha')?.value; const a=document.getElementById('repAlumno')?.value; const g=document.getElementById('repGrado')?.value; const n=document.getElementById('repNivel')?.value; const s=document.getElementById('repSeccion')?.value; if(f) p.set('fecha',f); if(a) p.set('alumno_id',a); if(g) p.set('grado',g); if(n) p.set('nivel',n); if(s) p.set('seccion',s); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#reportTable tbody'); if(!tb) return; tb.innerHTML=''; r.data.forEach(x=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha||''}</td><td>${x.clase||''}</td><td>${x.codigo||''}</td><td>${x.alumno||''}</td><td>${x.email||''}</td><td>${x.grado||''}</td><td>${x.nivel||''}</td><td>${x.seccion||''}</td><td>${x.ciclo_escolar||''}</td><td>${x.estado||''}</td><td>${x.registrado_en||''}</td>`; tb.appendChild(tr);}); });
 
