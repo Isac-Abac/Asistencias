@@ -31,6 +31,22 @@ CREATE TABLE IF NOT EXISTS clases (
   CONSTRAINT fk_clase_docente FOREIGN KEY (docente_id) REFERENCES usuarios(id)
 );
 
+CREATE TABLE IF NOT EXISTS grados (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(120) NOT NULL,
+  nivel ENUM('Primaria','Basico','Diversificado') NOT NULL,
+  grado_primaria VARCHAR(40) NULL,
+  grado_basico VARCHAR(40) NULL,
+  grado_diversificado VARCHAR(40) NULL,
+  carrera VARCHAR(120) NULL,
+  seccion VARCHAR(20) NOT NULL,
+  cupos INT NOT NULL DEFAULT 0,
+  docente_guia_id INT NOT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_grado_nivel_seccion (nombre, nivel, seccion),
+  CONSTRAINT fk_grado_docente_guia FOREIGN KEY (docente_guia_id) REFERENCES usuarios(id)
+);
+
 CREATE TABLE IF NOT EXISTS inscripciones (
   id INT AUTO_INCREMENT PRIMARY KEY,
   clase_id INT NOT NULL,

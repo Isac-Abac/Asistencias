@@ -41,6 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$nombre || !$codigo || $docenteId <= 0 || $cupos <= 0) {
         json_response(false, 'Nombre, codigo, docente y cupos son obligatorios', null, 422);
     }
+    if ($cupos > 30) {
+        json_response(false, 'El maximo de cupos por clase es 30', null, 422);
+    }
 
     $checkDoc = $conn->prepare("SELECT id FROM usuarios WHERE id = ? AND rol = 'docente'");
     $checkDoc->bind_param('i', $docenteId);

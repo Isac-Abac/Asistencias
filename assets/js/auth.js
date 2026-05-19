@@ -36,8 +36,24 @@ function applyTheme(theme) {
   }
 }
 
+function initGsapAuth() {
+  if (!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  gsap.from('.auth-container h1', { y: -28, opacity: 0, duration: 0.55, ease: 'power2.out' });
+  gsap.from('.auth-container p', { y: -16, opacity: 0, duration: 0.5, delay: 0.1, ease: 'power2.out' });
+  gsap.from('#loginForm', { y: 26, opacity: 0, duration: 0.6, delay: 0.15, ease: 'power3.out' });
+
+  const card = document.querySelector('#loginForm');
+  document.addEventListener('mousemove', (e) => {
+    if (!card) return;
+    const x = (e.clientX / window.innerWidth - 0.5) * 8;
+    const y = (e.clientY / window.innerHeight - 0.5) * 8;
+    gsap.to(card, { x, y, duration: 0.4, overwrite: 'auto', ease: 'power1.out' });
+  });
+}
+
 const savedTheme = localStorage.getItem('theme') || 'light';
 applyTheme(savedTheme);
+initGsapAuth();
 
 themeToggleBtn?.addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';

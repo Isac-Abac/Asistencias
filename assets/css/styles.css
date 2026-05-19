@@ -78,7 +78,7 @@ textarea { min-height: 90px; resize: vertical; }
 .actions button { padding: 6px 8px; font-size: 12px; }
 .admin-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
   gap: 8px;
   margin-bottom: 14px;
 }
@@ -164,6 +164,11 @@ textarea { min-height: 90px; resize: vertical; }
 .topbar-actions {
   display: flex;
   gap: 8px;
+}
+.muted-note {
+  margin: 10px 0;
+  opacity: .8;
+  font-size: 13px;
 }
 
 
