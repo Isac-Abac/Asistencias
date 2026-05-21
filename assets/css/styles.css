@@ -241,6 +241,7 @@ textarea { min-height: 90px; resize: vertical; }
   border: none;
   padding: 0;
   text-decoration: underline;
+  cursor: pointer;
 }
 .topbar-actions {
   display: flex;
@@ -275,6 +276,83 @@ textarea { min-height: 90px; resize: vertical; }
 #assignBoardTable td.course-filled {
   background: color-mix(in srgb, var(--primary) 16%, var(--card) 84%);
   font-weight: 600;
+}
+
+.report-slot {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--card) 92%, #cbd5e1 8%);
+}
+.slot-title {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+.slot-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+}
+.slot-row label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+#reportsControlForm input[readonly] {
+  background: color-mix(in srgb, var(--card) 70%, #94a3b8 30%);
+}
+
+.teacher-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+}
+.teacher-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--card) 92%, #cbd5e1 8%);
+}
+.teacher-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.teacher-tab {
+  background: #0b3b4a;
+  border: 1px solid #0b3b4a;
+  position: relative;
+  overflow: hidden;
+  min-height: 42px;
+  font-weight: 600;
+}
+.teacher-tab.active {
+  background: #145c70;
+  transform: translateY(-1px);
+}
+.teacher-tab::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: rgba(255,255,255,.75);
+  transition: transform 220ms ease;
+}
+.teacher-tab.active::after {
+  transform: scaleX(1);
+}
+.teacher-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+.teacher-view.view-anim {
+  animation: fadeSlide .28s ease;
 }
 
 

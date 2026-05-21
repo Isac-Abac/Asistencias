@@ -1,11 +1,50 @@
 ﻿<?php
 require_once __DIR__ . '/bootstrap.php';
 
+function ensure_reports_control_table($conn) {
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS control_reportes_config (
+          id INT PRIMARY KEY,
+          start1 TIME NOT NULL,
+          end1 TIME NOT NULL,
+          end2 TIME NOT NULL,
+          end3 TIME NOT NULL,
+          end4 TIME NOT NULL,
+          actualizado_por INT NOT NULL,
+          actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT fk_crc_admin FOREIGN KEY (actualizado_por) REFERENCES usuarios(id)
+        )
+    ");
+}
+
+function to_minutes($hhmmss) {
+    $parts = explode(':', (string)$hhmmss);
+    if (count($parts) < 2) return -1;
+    return ((int)$parts[0] * 60) + (int)$parts[1];
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(false, 'Metodo no permitido', null, 405);
 }
 
 require_role(['control']);
+ensure_reports_control_table($conn);
+
+$cfgQ = $conn->query('SELECT start1, end1, end2, end3, end4 FROM control_reportes_config WHERE id = 1 LIMIT 1');
+$cfg = $cfgQ ? $cfgQ->fetch_assoc() : null;
+if ($cfg) {
+    $now = to_minutes(date('H:i:s'));
+    $start1 = to_minutes($cfg['start1']);
+    $end2 = to_minutes($cfg['end2']);
+    $start4 = to_minutes($cfg['end3']); // inicio de opcion 4
+    $end4 = to_minutes($cfg['end4']);
+    $allowMorning = ($now >= $start1 && $now <= $end2);
+    $allowExit = ($now >= $start4 && $now <= $end4);
+    if (!$allowMorning && !$allowExit) {
+        json_response(false, 'Escaner QR bloqueado por horario configurado', null, 403);
+    }
+}
+
 $data = input_json();
 $claseId = (int)($data['clase_id'] ?? 0);
 $qrRaw = trim($data['qr_data'] ?? '');

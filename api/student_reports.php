@@ -59,11 +59,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         json_response(false, 'No puedes reportar en esta clase', null, 403);
     }
 
-    $ins = $conn->prepare('SELECT id FROM inscripciones WHERE clase_id = ? AND estudiante_id = ?');
-    $ins->bind_param('ii', $claseId, $alumnoId);
-    $ins->execute();
-    if ($ins->get_result()->num_rows === 0) {
-        json_response(false, 'El alumno no pertenece a esta clase', null, 403);
+    // Validar pertenencia por grado/nivel/seccion (no por clase exacta)
+    $classInfo = $conn->prepare('SELECT nivel, grado, seccion FROM clases WHERE id = ? LIMIT 1');
+    $classInfo->bind_param('i', $claseId);
+    $classInfo->execute();
+    $targetClass = $classInfo->get_result()->fetch_assoc();
+    if (!$targetClass) {
+        json_response(false, 'Clase no encontrada', null, 404);
+    }
+
+    $belongsByGroup = $conn->prepare("
+        SELECT i.id
+        FROM inscripciones i
+        INNER JOIN clases c ON c.id = i.clase_id
+        WHERE i.estudiante_id = ?
+          AND c.nivel = ?
+          AND c.grado = ?
+          AND c.seccion = ?
+        LIMIT 1
+    ");
+    $belongsByGroup->bind_param('isss', $alumnoId, $targetClass['nivel'], $targetClass['grado'], $targetClass['seccion']);
+    $belongsByGroup->execute();
+    if ($belongsByGroup->get_result()->num_rows === 0) {
+        json_response(false, 'El alumno no pertenece al grado/seccion de este curso', null, 403);
     }
 
     $stmt = $conn->prepare('INSERT INTO reportes_alumno(clase_id, alumno_id, docente_id, fecha, reporte, comentario) VALUES (?, ?, ?, ?, ?, ?)');

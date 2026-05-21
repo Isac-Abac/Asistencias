@@ -97,6 +97,18 @@ CREATE TABLE IF NOT EXISTS reportes_alumno (
   CONSTRAINT fk_ra_docente FOREIGN KEY (docente_id) REFERENCES usuarios(id)
 );
 
+CREATE TABLE IF NOT EXISTS control_reportes_config (
+  id INT PRIMARY KEY,
+  start1 TIME NOT NULL,
+  end1 TIME NOT NULL,
+  end2 TIME NOT NULL,
+  end3 TIME NOT NULL,
+  end4 TIME NOT NULL,
+  actualizado_por INT NOT NULL,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_crc_admin FOREIGN KEY (actualizado_por) REFERENCES usuarios(id)
+);
+
 INSERT INTO usuarios (nombre, username, email, password_hash, rol)
 SELECT 'Isac', 'iisac00001', 'isac@admin.local', '$2y$10$A9IydirDrqXMd4SQg/GaO.VP2eaN0KuaBQSVxwpOpyysixbS.E28W', 'admin'
 WHERE NOT EXISTS (SELECT 1 FROM usuarios WHERE email = 'isac@admin.local');

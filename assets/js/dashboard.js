@@ -8,6 +8,8 @@ const themeToggleBtn = document.getElementById('themeToggleBtn');
 let usersCache = [];
 let classesCache = [];
 let gradesCache = [];
+let myStudentsCache = [];
+let todayReportsByStudent = new Set();
 let scannerStarted = false;
 let currentUser = null;
 const HORARIOS = ['07:30-08:10','08:10-08:50','08:50-09:30','09:30-10:05','10:45-11:20','11:20-11:55','11:55-12:30'];
@@ -109,6 +111,19 @@ function resetAdminViewFields() {
 }
 
 function switchAdminView(view){ resetAdminViewFields(); document.querySelectorAll('.admin-tab').forEach(b=>b.classList.toggle('active',b.dataset.adminView===view)); document.querySelectorAll('.admin-view').forEach(v=>v.classList.toggle('hidden',v.id!==`adminView-${view}`)); animateAdminView(view); }
+function animateTeacherView(view) {
+  if (!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  gsap.fromTo(`#teacherView-${view}`, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32, ease: 'power2.out' });
+}
+function switchTeacherView(view){
+  document.querySelectorAll('.teacher-tab').forEach(b=>b.classList.toggle('active',b.dataset.teacherView===view));
+  document.querySelectorAll('.teacher-view').forEach(v=>{
+    const active = v.id===`teacherView-${view}`;
+    v.classList.toggle('hidden', !active);
+    v.classList.toggle('view-anim', active);
+  });
+  animateTeacherView(view);
+}
 function fillSimpleSelect(id,list,placeholder){ const el=document.getElementById(id); if(!el) return; el.innerHTML=`<option value="">${placeholder}</option>`; list.forEach(v=>{const op=document.createElement('option'); op.value=v; op.textContent=v; el.appendChild(op);}); }
 
 function renderUsers(){ const q=(document.getElementById('userSearchName')?.value||'').toLowerCase().trim(); const data=q?usersCache.filter(u=>(u.nombre||'').toLowerCase().includes(q)):usersCache; const tb=document.querySelector('#usersTable tbody'); if(!tb) return; tb.innerHTML=''; data.forEach(u=>{const credBtn=(u.rol==='alumno'||u.rol==='estudiante'||u.rol==='docente')?`<button data-cred="${u.id}">Credencial</button>`:''; const tr=document.createElement('tr'); tr.innerHTML=`<td>${u.id}</td><td>${u.nombre}</td><td><button class="link-btn" data-qr="${u.id}">${u.username||''}</button></td><td>${u.email}</td><td>${u.rol}</td><td class="actions"><button data-edit="${u.id}">Editar</button><button data-del="${u.id}">Eliminar</button>${credBtn}</td>`; tb.appendChild(tr);}); }
@@ -538,7 +553,158 @@ function resetByNivelChange() {
 async function loadUsers(){ const r=await api('api/users.php'); if(!r.ok) return alertErr(r.message); usersCache=Array.isArray(r.data)?r.data:[]; renderUsers(); fillDynamic(); }
 async function loadClasses(){ const r=await api('api/classes.php'); if(!r.ok) return; classesCache=Array.isArray(r.data)?r.data:[]; fillDynamic(); }
 async function loadGrades(){ const r=await api('api/grades.php'); if(!r.ok) return; gradesCache=Array.isArray(r.data)?r.data:[]; renderGrades(); fillDynamic(); }
-async function loadMyStudents(){ const r=await api('api/my_students.php'); if(!r.ok) return; const s=document.getElementById('reportAlumno'); if(!s) return; s.innerHTML='<option value="">Seleccione alumno</option>'; r.data.forEach(st=>{const op=document.createElement('option'); op.value=st.id; op.textContent=`${st.nombre} (${st.email})`; s.appendChild(op);}); }
+async function loadTeacherReportsToday(){
+  const today = dateISO(new Date());
+  const r = await api('api/student_reports.php');
+  if (!r.ok) { todayReportsByStudent = new Set(); return; }
+  const rows = Array.isArray(r.data) ? r.data : [];
+  todayReportsByStudent = new Set(
+    rows
+      .filter(x => String(x.fecha || '') === today)
+      .map(x => Number(x.alumno_id))
+      .filter(n => n > 0)
+  );
+}
+function renderTeacherAttendanceList(){
+  const tb=document.querySelector('#teacherReportTable tbody');
+  if(!tb) return;
+  tb.innerHTML='';
+  const today = dateISO(new Date());
+  if (!myStudentsCache.length) {
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td colspan="3">No hay alumnos asignados a este grado.</td>';
+    tb.appendChild(tr);
+    return;
+  }
+  myStudentsCache.forEach(st=>{
+    const hasReport = todayReportsByStudent.has(Number(st.id));
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${today}</td><td><button type="button" class="link-btn" data-teacher-student="${st.id}" style="font-weight:700;color:${hasReport?'#b91c1c':'#15803d'}">${st.nombre||''}</button></td><td>${st.email||''}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+async function showTeacherStudentReports(studentId){
+  const alumno = myStudentsCache.find(s => String(s.id) === String(studentId));
+  if (!alumno) return;
+  const r = await api(`api/student_reports.php?alumno_id=${encodeURIComponent(studentId)}`);
+  if (!r.ok) return alertErr(r.message);
+  const rows = Array.isArray(r.data) ? r.data : [];
+  if (!rows.length) {
+    await Swal.fire({
+      title: `Reportes de ${alumno.nombre}`,
+      text: 'Ningun reporte',
+      icon: 'info'
+    });
+    return;
+  }
+  const html = `
+    <div style="max-height:320px;overflow:auto;text-align:left">
+      ${rows.map(x => `
+        <div style="border:1px solid #d1d5db;border-radius:8px;padding:8px;margin-bottom:8px">
+          <div><strong>Fecha:</strong> ${x.fecha || ''}</div>
+          <div><strong>Clase:</strong> ${x.clase || ''}</div>
+          <div><strong>Reporte:</strong> ${x.reporte || ''}</div>
+          <div><strong>Comentario:</strong> ${x.comentario || 'Sin comentario'}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  await Swal.fire({
+    title: `Reportes de ${alumno.nombre}`,
+    html,
+    width: 760
+  });
+}
+function renderTeacherSummary(){
+  const nivelEl = document.getElementById('teacherNivel');
+  const gradoEl = document.getElementById('teacherGrado');
+  const seccionEl = document.getElementById('teacherSeccion');
+  const cantEl = document.getElementById('teacherCantidad');
+  if (!nivelEl || !gradoEl || !seccionEl || !cantEl) return;
+  const firstClass = classesCache[0] || null;
+  nivelEl.textContent = firstClass?.nivel || '-';
+  gradoEl.textContent = firstClass?.grado || '-';
+  seccionEl.textContent = firstClass?.seccion || '-';
+  cantEl.textContent = String(myStudentsCache.length || 0);
+}
+function renderTeacherScheduleBoard() {
+  const titleEl = document.getElementById('teacherScheduleTitle');
+  const thead = document.querySelector('#teacherScheduleTable thead');
+  const tbody = document.querySelector('#teacherScheduleTable tbody');
+  if (!titleEl || !thead || !tbody) return;
+
+  const base = classesCache[0] || null;
+  const nivel = base?.nivel || '';
+  const grado = base?.grado || '';
+  const seccion = String(base?.seccion || '').toUpperCase();
+  titleEl.textContent = base ? `${grado} - Seccion ${seccion} (${nivel})` : 'Horario del grado';
+
+  thead.innerHTML = `<tr><th>Dia</th>${HORARIOS.map(h=>`<th>${h}</th>`).join('')}</tr>`;
+  tbody.innerHTML = '';
+  DIAS.forEach((dia) => {
+    const tr = document.createElement('tr');
+    let row = `<td>${dia}</td>`;
+    HORARIOS.forEach((hora) => {
+      const c = classesCache.find(x =>
+        x.dia === dia &&
+        x.horario === hora &&
+        (!base || (x.nivel === nivel && x.grado === grado && String(x.seccion || '').toUpperCase() === seccion))
+      );
+      row += c ? `<td class="course-filled">${c.nombre}</td>` : '<td>-</td>';
+    });
+    tr.innerHTML = row;
+    tbody.appendChild(tr);
+  });
+}
+function downloadTeacherSchedulePdf() {
+  if (!window.jspdf || !window.jspdf.jsPDF) return alertErr('No se pudo cargar generador de PDF');
+  const table = document.getElementById('teacherScheduleTable');
+  const title = document.getElementById('teacherScheduleTitle')?.textContent || 'Horario del grado';
+  if (!table) return;
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  pdf.setFontSize(14);
+  pdf.text(title, 14, 14);
+
+  let y = 24;
+  const dayW = 26;
+  const cellW = 35;
+  const rowH = 9;
+  const x0 = 10;
+  const headers = ['Dia', ...HORARIOS];
+
+  headers.forEach((h, idx) => {
+    const w = idx === 0 ? dayW : cellW;
+    const x = idx === 0 ? x0 : x0 + dayW + (idx - 1) * cellW;
+    pdf.rect(x, y, w, rowH);
+    pdf.setFontSize(8);
+    pdf.text(h, x + 1.5, y + 6);
+  });
+  y += rowH;
+
+  DIAS.forEach((dia) => {
+    pdf.rect(x0, y, dayW, rowH);
+    pdf.setFontSize(9);
+    pdf.text(dia, x0 + 1.5, y + 6);
+    HORARIOS.forEach((hora, i) => {
+      const x = x0 + dayW + i * cellW;
+      const c = classesCache.find(cl => cl.dia === dia && cl.horario === hora);
+      pdf.rect(x, y, cellW, rowH);
+      if (c?.nombre) {
+        const txt = String(c.nombre).slice(0, 20);
+        pdf.setFontSize(8);
+        pdf.text(txt, x + 1.5, y + 6);
+      }
+    });
+    y += rowH;
+  });
+
+  pdf.save('horario-grado.pdf');
+}
+async function loadMyStudents(){ const r=await api('api/my_students.php'); if(!r.ok) return; myStudentsCache=Array.isArray(r.data)?r.data:[]; const s=document.getElementById('reportAlumno'); if(s){ s.innerHTML='<option value="">Seleccione alumno</option>'; myStudentsCache.forEach(st=>{const op=document.createElement('option'); op.value=st.id; op.textContent=`${st.nombre} (${st.email})`; s.appendChild(op);}); } await loadTeacherReportsToday(); renderTeacherSummary(); renderTeacherAttendanceList(); }
 async function loadStudentReports(){ const r=await api('api/student_reports.php'); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#myReportsTable tbody'); if(!tb) return; tb.innerHTML=''; r.data.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.docente}</td><td>${x.reporte}</td><td>${x.comentario||''}</td>`; tb.appendChild(tr);}); }
 
 function initControlScanner(){
@@ -565,6 +731,80 @@ function initControlScanner(){
   ).catch(() => alertErr('No se pudo iniciar la camara.'));
 }
 
+function toMinutes(hhmm) {
+  if (!hhmm || !String(hhmm).includes(':')) return -1;
+  const [h,m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return -1;
+  return h * 60 + m;
+}
+
+function syncReportsControlStarts() {
+  const e1 = document.getElementById('rcEnd1')?.value || '';
+  const e2 = document.getElementById('rcEnd2')?.value || '';
+  const e3 = document.getElementById('rcEnd3')?.value || '';
+  const s2 = document.getElementById('rcStart2');
+  const s3 = document.getElementById('rcStart3');
+  const s4 = document.getElementById('rcStart4');
+  if (s2) s2.value = e1;
+  if (s3) s3.value = e2;
+  if (s4) s4.value = e3;
+}
+
+function loadReportsControlConfig() {
+  return api('api/reports_control.php').then((r) => {
+    if (!r.ok || !r.data) return;
+    const cfg = r.data;
+    const map = {
+      rcStart1: cfg.start1,
+      rcEnd1: cfg.end1,
+      rcEnd2: cfg.end2,
+      rcEnd3: cfg.end3,
+      rcEnd4: cfg.end4
+    };
+    Object.entries(map).forEach(([id,val]) => {
+      const el = document.getElementById(id);
+      if (el && val) el.value = String(val).slice(0,5);
+    });
+    syncReportsControlStarts();
+  });
+}
+
+function initReportsControl() {
+  const form = document.getElementById('reportsControlForm');
+  if (!form) return;
+  loadReportsControlConfig();
+  ['rcEnd1','rcEnd2','rcEnd3'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('change', syncReportsControlStarts);
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    syncReportsControlStarts();
+    const s1 = document.getElementById('rcStart1')?.value || '';
+    const e1 = document.getElementById('rcEnd1')?.value || '';
+    const s2 = document.getElementById('rcStart2')?.value || '';
+    const e2 = document.getElementById('rcEnd2')?.value || '';
+    const s3 = document.getElementById('rcStart3')?.value || '';
+    const e3 = document.getElementById('rcEnd3')?.value || '';
+    const s4 = document.getElementById('rcStart4')?.value || '';
+    const e4 = document.getElementById('rcEnd4')?.value || '';
+
+    if (!s1 || !e1 || !e2 || !e3 || !e4) return alertErr('Completa todas las horas requeridas');
+    const m = [s1,e1,s2,e2,s3,e3,s4,e4].map(toMinutes);
+    if (m.some(x => x < 0)) return alertErr('Formato de hora invalido');
+    if (!(m[0] < m[1] && m[2] < m[3] && m[4] < m[5] && m[6] < m[7])) return alertErr('Cada bloque debe tener hora inicio menor que hora final');
+    if (!(m[1] === m[2] && m[3] === m[4] && m[5] === m[6])) return alertErr('Las horas deben ser continuas entre bloques');
+    if (!(m[0] < m[1] && m[1] < m[3] && m[3] < m[5] && m[5] < m[7])) return alertErr('La secuencia de bloques no puede retroceder');
+
+    const r = await api('api/reports_control.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start1: s1, end1: e1, end2: e2, end3: e3, end4: e4 })
+    });
+    if (!r.ok) return alertErr(r.message);
+    alertOk(r.message);
+  });
+}
+
 document.getElementById('logoutBtn')?.addEventListener('click',async()=>{ await api('api/logout.php',{method:'POST'}); location.href='index.html';});
 themeToggleBtn?.addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -572,6 +812,8 @@ themeToggleBtn?.addEventListener('click', () => {
   applyTheme(next);
 });
 document.querySelectorAll('.admin-tab').forEach(b=>b.addEventListener('click',()=>switchAdminView(b.dataset.adminView)));
+document.querySelectorAll('.teacher-tab').forEach(b=>b.addEventListener('click',()=>switchTeacherView(b.dataset.teacherView)));
+document.getElementById('downloadTeacherScheduleBtn')?.addEventListener('click', downloadTeacherSchedulePdf);
 document.getElementById('loadUsersBtn')?.addEventListener('click', loadUsers);
 document.getElementById('userSearchName')?.addEventListener('input',renderUsers);
 document.getElementById('adminRol')?.addEventListener('change',()=>{ resetByRoleChange(); toggleRoleFields(); });
@@ -615,15 +857,23 @@ document.querySelector('#usersTable')?.addEventListener('click', async (e)=>{
   if(delId){ const ask=await Swal.fire({icon:'warning',title:'Eliminar usuario',text:'Esta accion no se puede deshacer',showCancelButton:true}); if(!ask.isConfirmed) return; const r=await api(`api/users.php?id=${delId}`,{method:'DELETE'}); if(!r.ok) return alertErr(r.message); await loadUsers(); alertOk(r.message); }
 });
 
+document.querySelector('#teacherReportTable')?.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-teacher-student]');
+  if (!btn) return;
+  const studentId = btn.getAttribute('data-teacher-student');
+  if (!studentId) return;
+  await showTeacherStudentReports(studentId);
+});
+
 document.getElementById('adminCreateUserForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const rol=document.getElementById('adminRol').value; const payload={nombres:document.getElementById('adminNombres').value.trim(),apellidos:document.getElementById('adminApellidos').value.trim(),email:document.getElementById('adminEmail').value.trim(),password:document.getElementById('adminPass').value,rol}; if(rol==='alumno'){ payload.fecha_nacimiento=document.getElementById('alumnoFechaNac').value; payload.nivel=document.getElementById('alumnoNivel').value; payload.grado=document.getElementById('alumnoGrado').value; payload.seccion=document.getElementById('alumnoSeccion').value; payload.ciclo_escolar=document.getElementById('alumnoCiclo').value; } if(rol==='docente'){ payload.fecha_nacimiento=document.getElementById('docenteFechaNac').value;} const r=await api('api/register.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); toggleRoleFields(); await Promise.all([loadUsers(),loadClasses(),loadGrades()]); switchAdminView('users'); alertOk(`${r.message}. Usuario: ${r.data?.username||''}`); });
 
 document.getElementById('adminClassForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={nivel:document.getElementById('classNivel').value,grado:document.getElementById('classGrado').value,seccion:document.getElementById('classSeccion').value.trim().toUpperCase(),nombre:document.getElementById('classNombre').value.trim(),dia:document.getElementById('classDia').value,horario:document.getElementById('classHorario').value}; const r=await api('api/classes.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); await loadClasses(); renderAssignBoard(); alertOk(r.message); });
 document.getElementById('adminGradeForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={nivel:document.getElementById('gradeNivel').value,grado_primaria:document.getElementById('gradePrimaria').value,grado_basico:document.getElementById('gradeBasico').value,grado_diversificado:document.getElementById('gradeDiversificado').value,carrera:document.getElementById('gradeCarrera').value.trim(),seccion:document.getElementById('gradeSeccion').value.trim(),cupos:Number(document.getElementById('gradeCupos').value),docente_guia_id:Number(document.getElementById('gradeDocenteGuia').value)}; const r=await api('api/grades.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); toggleGradeFields(); await loadGrades(); alertOk(r.message); });
 document.getElementById('reportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const p=new URLSearchParams(); const f=document.getElementById('repFecha')?.value; const a=document.getElementById('repAlumno')?.value; const g=document.getElementById('repGrado')?.value; const n=document.getElementById('repNivel')?.value; const s=document.getElementById('repSeccion')?.value; if(f) p.set('fecha',f); if(a) p.set('alumno_id',a); if(g) p.set('grado',g); if(n) p.set('nivel',n); if(s) p.set('seccion',s); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#reportTable tbody'); if(!tb) return; tb.innerHTML=''; const rows=Array.isArray(r.data)?r.data:[]; if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="6">No hay registros de asistencia</td>'; tb.appendChild(tr); return; } rows.forEach(x=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha||''}</td><td>${x.nivel||''}</td><td>${x.grado||''}</td><td>${x.seccion||''}</td><td>${x.alumno||''}</td><td>${x.registrado_en||''}</td>`; tb.appendChild(tr);}); });
 
-document.getElementById('teacherReportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const p=new URLSearchParams(); const f=document.getElementById('tRepFecha')?.value; const em=document.getElementById('tRepEmail')?.value; const c=document.getElementById('tRepClase')?.value; if(f) p.set('fecha',f); if(em) p.set('email',em); if(c) p.set('clase_id',c); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#teacherReportTable tbody'); if(!tb) return; tb.innerHTML=''; r.data.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.alumno}</td><td>${x.email}</td><td>${x.estado}</td>`; tb.appendChild(tr);}); });
+document.getElementById('teacherReportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); });
 
-document.getElementById('studentReportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={clase_id:Number(document.getElementById('reportClaseDocente').value),alumno_id:Number(document.getElementById('reportAlumno').value),fecha:document.getElementById('reportFecha').value,reporte:document.getElementById('reportTexto').value,comentario:document.getElementById('commentTexto').value}; const r=await api('api/student_reports.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); alertOk(r.message); });
+document.getElementById('studentReportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={clase_id:Number(document.getElementById('reportClaseDocente').value),alumno_id:Number(document.getElementById('reportAlumno').value),reporte:document.getElementById('reportTexto').value,comentario:document.getElementById('commentTexto').value}; const r=await api('api/student_reports.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); await loadTeacherReportsToday(); renderTeacherAttendanceList(); alertOk(r.message); });
 
 document.getElementById('studentReportFormOnly')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const p=new URLSearchParams(); const f=document.getElementById('sRepFecha')?.value; if(f) p.set('fecha',f); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#studentOnlyAttendanceTable tbody'); if(!tb) return; tb.innerHTML=''; r.data.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.codigo}</td><td>${x.estado}</td><td>${x.registrado_en}</td>`; tb.appendChild(tr);}); });
 
@@ -632,6 +882,7 @@ async function init(){
   setBirthDateLimits();
   setReportDateLimit();
   initGsapDashboard();
+  initReportsControl();
   const s=await api('api/session.php');
   if(!s.ok||!s.data) return location.href='index.html';
   currentUser=s.data;
@@ -640,7 +891,7 @@ async function init(){
   await loadGrades();
 
   if(s.data.rol==='admin'){ adminModule.classList.remove('hidden'); switchAdminView('users'); await loadUsers(); toggleRoleFields(); toggleGradeFields(); }
-  if(s.data.rol==='docente'){ teacherModule.classList.remove('hidden'); await loadMyStudents(); }
+  if(s.data.rol==='docente'){ teacherModule.classList.remove('hidden'); switchTeacherView('attendance'); renderTeacherSummary(); renderTeacherScheduleBoard(); await loadMyStudents(); renderTeacherScheduleBoard(); }
   if(s.data.rol==='alumno'||s.data.rol==='estudiante'){ studentModule.classList.remove('hidden'); }
   if(s.data.rol==='control'){ controlModule.classList.remove('hidden'); initControlScanner(); }
 }
