@@ -133,7 +133,34 @@ function switchStudentView(view){
 }
 function fillSimpleSelect(id,list,placeholder){ const el=document.getElementById(id); if(!el) return; el.innerHTML=`<option value="">${placeholder}</option>`; list.forEach(v=>{const op=document.createElement('option'); op.value=v; op.textContent=v; el.appendChild(op);}); }
 
-function renderUsers(){ const q=(document.getElementById('userSearchName')?.value||'').toLowerCase().trim(); const data=q?usersCache.filter(u=>(u.nombre||'').toLowerCase().includes(q)):usersCache; const tb=document.querySelector('#usersTable tbody'); if(!tb) return; tb.innerHTML=''; data.forEach(u=>{const credBtn=(u.rol==='alumno'||u.rol==='estudiante'||u.rol==='docente')?`<button data-cred="${u.id}">Credencial</button>`:''; const tr=document.createElement('tr'); tr.innerHTML=`<td>${u.id}</td><td>${u.nombre}</td><td><button class="link-btn" data-qr="${u.id}">${u.username||''}</button></td><td>${u.email}</td><td>${u.rol}</td><td class="actions"><button data-edit="${u.id}">Editar</button><button data-del="${u.id}">Eliminar</button>${credBtn}</td>`; tb.appendChild(tr);}); }
+function teacherHasAssignedGrade(userId){
+  return gradesCache.some((g) => Number(g.docente_guia_id || 0) === Number(userId));
+}
+async function teacherHasAssignedGradeLive(userId){
+  const r = await api('api/grades.php');
+  if(!r.ok || !Array.isArray(r.data)) return false;
+  gradesCache = r.data;
+  return r.data.some((g) => Number(g.docente_guia_id || 0) === Number(userId));
+}
+function renderUsers(){
+  const q=(document.getElementById('userSearchName')?.value||'').toLowerCase().trim();
+  const data=q?usersCache.filter(u=>(u.nombre||'').toLowerCase().includes(q)):usersCache;
+  const tb=document.querySelector('#usersTable tbody');
+  if(!tb) return;
+  tb.innerHTML='';
+  data.forEach(u=>{
+    const isTeacher = u.rol === 'docente';
+    const canCredential =
+      u.rol === 'alumno' ||
+      u.rol === 'estudiante' ||
+      (isTeacher && teacherHasAssignedGrade(u.id));
+    const credBtn = canCredential ? `<button data-cred="${u.id}">Credencial</button>` : '';
+    const delBtn = (u.rol === 'admin' || u.rol === 'control') ? '' : `<button data-del="${u.id}">Eliminar</button>`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${u.id}</td><td>${u.nombre}</td><td><button class="link-btn" data-qr="${u.id}">${u.username||''}</button></td><td>${u.email}</td><td>${u.rol}</td><td class="actions"><button data-edit="${u.id}">Editar</button>${delBtn}${credBtn}</td>`;
+    tb.appendChild(tr);
+  });
+}
 
 async function showUserQr(user){ const qrId='qrUserBox'; await Swal.fire({ title:`QR de ${user.username}`, html:`<div id="${qrId}" style="display:flex;justify-content:center;margin:8px 0"></div><button id="saveQrBtn" class="swal2-confirm swal2-styled" style="margin-top:8px">Guardar</button>`, showConfirmButton:false, didOpen:()=>{ const box=document.getElementById(qrId); box.innerHTML=''; new QRCode(box,{text:user.qr_payload||JSON.stringify(user),width:220,height:220}); document.getElementById('saveQrBtn').addEventListener('click',()=>{ const img=box.querySelector('img')||box.querySelector('canvas'); if(!img) return; const url=img.tagName.toLowerCase()==='img'?img.src:img.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`${user.username||'usuario'}-qr.png`; a.click();}); }}); }
 async function buildQrDataUrl(text, size = 170) {
@@ -153,6 +180,17 @@ async function downloadCredential(user){
   const qrText = user.qr_payload || JSON.stringify(user);
   const qrUrl = await buildQrDataUrl(qrText, 380);
   if (!qrUrl) return alertErr('No se pudo generar el QR de la credencial');
+  let credNivel = user.nivel || '-';
+  let credGrado = user.grado || '-';
+  let credSeccion = user.seccion || '-';
+  if (user.rol === 'docente') {
+    const g = gradesCache.find((x) => Number(x.docente_guia_id || 0) === Number(user.id));
+    if (g) {
+      credNivel = g.nivel || '-';
+      credGrado = g.grado_mostrar || g.nombre || '-';
+      credSeccion = g.seccion || '-';
+    }
+  }
 
   const canvas = document.createElement('canvas');
   canvas.width = 2000;
@@ -185,13 +223,20 @@ async function downloadCredential(user){
   ctx.font = 'bold 40px Segoe UI';
   ctx.fillText(user.rol?.toUpperCase() || 'USUARIO', 1520, 120);
 
-  const lines = [
-    `Nombre: ${user.nombre || ''}`,
-    `Nivel: ${user.nivel || '-'}`,
-    `Grado: ${user.grado || '-'}`,
-    `Seccion: ${user.seccion || '-'}`,
-    `Ciclo escolar: ${user.ciclo_escolar || '-'}`
-  ];
+  const lines = user.rol === 'docente'
+    ? [
+        `Nombre: ${user.nombre || ''}`,
+        `Nivel: ${credNivel}`,
+        `Grado: ${credGrado}`,
+        `Seccion: ${credSeccion}`
+      ]
+    : [
+        `Nombre: ${user.nombre || ''}`,
+        `Nivel: ${credNivel}`,
+        `Grado: ${credGrado}`,
+        `Seccion: ${credSeccion}`,
+        `Ciclo escolar: ${user.ciclo_escolar || '-'}`
+      ];
   ctx.fillStyle = '#1e293b';
   ctx.font = '44px Segoe UI';
   let textY = infoBox.y + 110;
@@ -211,7 +256,19 @@ async function downloadCredential(user){
   alertOk('Credencial PDF descargada en carta (credencial 10x5 cm)');
 }
 
-function renderGrades(){ const tb=document.querySelector('#gradesTable tbody'); if(!tb) return; tb.innerHTML=''; gradesCache.forEach(g=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${g.id}</td><td>${g.nivel||''}</td><td>${g.grado_mostrar||g.nombre||''}</td><td>${g.seccion||''}</td><td>${g.cupos??''}</td><td>${g.docente_guia||''}</td>`; tb.appendChild(tr); }); }
+function renderGrades(){
+  const tb=document.querySelector('#gradesTable tbody');
+  if(!tb) return;
+  tb.innerHTML='';
+  gradesCache.forEach(g=>{
+    const total = Number(g.cupos ?? 0);
+    const disp = Number(g.cupos_disponibles ?? total);
+    const cuposTxt = `${disp}/${total}`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${g.id}</td><td>${g.nivel||''}</td><td>${g.grado_mostrar||g.nombre||''}</td><td>${g.seccion||''}</td><td>${cuposTxt}</td><td>${g.docente_guia||''}</td>`;
+    tb.appendChild(tr);
+  });
+}
 function updateAlumnoGradoSeccion() {
   const nivel = document.getElementById('alumnoNivel')?.value || '';
   const gradoSel = document.getElementById('alumnoGrado');
@@ -503,6 +560,7 @@ function toggleGradeFields(){
   const diversificado=document.getElementById('gradeDiversificado');
   const carrera=document.getElementById('gradeCarrera');
   const carreraRow=document.getElementById('gradeCarreraRow');
+  const carreraExistente=document.getElementById('gradeCarreraExistente');
   if(!primaria||!basico||!diversificado||!carrera) return;
   const showPrim=nivel==='Primaria';
   const showBas=nivel==='Basico';
@@ -512,6 +570,10 @@ function toggleGradeFields(){
   diversificado.classList.toggle('hidden',!showCarr); diversificado.required=showCarr; if(!showCarr) diversificado.value='';
   if (carreraRow) carreraRow.classList.toggle('hidden',!showCarr);
   carrera.required=showCarr; if(!showCarr) carrera.value='';
+  if (carreraExistente) {
+    carreraExistente.disabled = !showCarr;
+    if (!showCarr) carreraExistente.value = '';
+  }
   updateGradeLocks();
 }
 
@@ -931,7 +993,11 @@ document.getElementById('classGrado')?.addEventListener('change',()=>{ updateCla
 document.getElementById('classSeccion')?.addEventListener('change',()=>{ updateHorarioLocks(); renderAssignBoard(); });
 document.getElementById('classDia')?.addEventListener('change',()=>{ updateHorarioLocks(); renderAssignBoard(); });
 document.getElementById('gradeSeccion')?.addEventListener('input',()=>{ updateGradeLocks(); });
-document.getElementById('gradeCarrera')?.addEventListener('input',()=>{ updateGradeLocks(); });
+document.getElementById('gradeCarrera')?.addEventListener('input',(e)=>{
+  const sel=document.getElementById('gradeCarreraExistente');
+  if(sel && !String(e.target.value||'').trim()) sel.value='';
+  updateGradeLocks();
+});
 document.getElementById('gradeCarreraExistente')?.addEventListener('change',(e)=>{ const c=document.getElementById('gradeCarrera'); if(c && e.target.value) c.value=e.target.value; updateGradeLocks(); });
 document.getElementById('adminNombres')?.addEventListener('input',e=>{ e.target.value=sanitizeLetters(e.target.value); const u=document.getElementById('adminUsername'); if(u) u.value=genUserPreview(document.getElementById('adminNombres').value,document.getElementById('adminApellidos').value);});
 document.getElementById('adminApellidos')?.addEventListener('input',e=>{ e.target.value=sanitizeLetters(e.target.value); const u=document.getElementById('adminUsername'); if(u) u.value=genUserPreview(document.getElementById('adminNombres').value,document.getElementById('adminApellidos').value);});
@@ -1017,9 +1083,27 @@ document.getElementById('teacherAttendanceTodayBtn')?.addEventListener('click', 
 document.querySelector('#usersTable')?.addEventListener('click', async (e)=>{
   const qrId=e.target.getAttribute('data-qr'); const editId=e.target.getAttribute('data-edit'); const delId=e.target.getAttribute('data-del'); const credId=e.target.getAttribute('data-cred');
   if(qrId){ const user=usersCache.find(u=>String(u.id)===String(qrId)); if(user) await showUserQr(user); return; }
-  if(credId){ const user=usersCache.find(u=>String(u.id)===String(credId)); if(user) await downloadCredential(user); return; }
+  if(credId){
+    const user=usersCache.find(u=>String(u.id)===String(credId));
+    if(!user) return;
+    if(user.rol==='docente'){
+      const okAssigned = await teacherHasAssignedGradeLive(user.id);
+      if(!okAssigned) return alertErr('Asigne a un curso');
+    }
+    await downloadCredential(user);
+    return;
+  }
   if(editId){ const current=usersCache.find(u=>String(u.id)===String(editId)); const sp=splitName(current?.nombre||''); const {value:fv}=await Swal.fire({title:`Editar usuario #${editId}`, html:`<input id="swNombres" class="swal2-input" placeholder="Nombres" value="${sp.nombres||''}"><input id="swApellidos" class="swal2-input" placeholder="Apellidos" value="${sp.apellidos||''}"><input id="swEmail" class="swal2-input" placeholder="Email" value="${current?.email||''}"><select id="swRol" class="swal2-input"><option value="alumno">alumno</option><option value="docente">docente</option><option value="admin">admin</option></select><input id="swPass" type="password" class="swal2-input" placeholder="Nueva contrasena (opcional)">`, didOpen:()=>{const rol=document.getElementById('swRol'); if(rol&&current?.rol) rol.value=current.rol;}, preConfirm:()=>({nombres:document.getElementById('swNombres').value,apellidos:document.getElementById('swApellidos').value,email:document.getElementById('swEmail').value,rol:document.getElementById('swRol').value,password:document.getElementById('swPass').value})}); if(!fv) return; const r=await api('api/users.php',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:Number(editId),...fv})}); if(!r.ok) return alertErr(r.message); await loadUsers(); return alertOk(r.message); }
-  if(delId){ const ask=await Swal.fire({icon:'warning',title:'Eliminar usuario',text:'Esta accion no se puede deshacer',showCancelButton:true}); if(!ask.isConfirmed) return; const r=await api(`api/users.php?id=${delId}`,{method:'DELETE'}); if(!r.ok) return alertErr(r.message); await loadUsers(); alertOk(r.message); }
+  if(delId){
+    const target = usersCache.find(u=>String(u.id)===String(delId));
+    if(target && (target.rol==='admin' || target.rol==='control')) return;
+    const ask=await Swal.fire({icon:'warning',title:'Eliminar usuario',text:'Esta accion no se puede deshacer',showCancelButton:true});
+    if(!ask.isConfirmed) return;
+    const r=await api(`api/users.php?id=${delId}`,{method:'DELETE'});
+    if(!r.ok) return alertErr(r.message);
+    await loadUsers();
+    alertOk(r.message);
+  }
 });
 
 document.querySelector('#teacherReportTable')?.addEventListener('click', async (e)=>{

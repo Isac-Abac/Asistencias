@@ -1,6 +1,12 @@
 ﻿<?php
 require_once __DIR__ . '/bootstrap.php';
 
+function ensure_register_schema($conn) {
+    $conn->query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS grado VARCHAR(120) NULL");
+}
+
+ensure_register_schema($conn);
+
 function calc_age($birthDate) {
     $birth = new DateTime($birthDate);
     $today = new DateTime('today');
@@ -81,28 +87,46 @@ if ($rol === 'alumno') {
     $edad = calc_age($fechaNac);
     if ($edad < 7 || $edad > 100) json_response(false, 'Edad invalida para registro', null, 422);
 
-    $findClase = $conn->prepare('SELECT c.id FROM clases c WHERE c.nivel = ? AND c.grado = ? AND c.seccion = ? ORDER BY c.id ASC LIMIT 1');
-    $findClase->bind_param('sss', $nivel, $grado, $seccion);
-    $findClase->execute();
-    $claseRow = $findClase->get_result()->fetch_assoc();
-    if (!$claseRow) json_response(false, 'No existe curso asignado para ese nivel, grado y seccion', null, 422);
-    $claseId = (int)$claseRow['id'];
+    $gradeQ = $conn->prepare('SELECT id, cupos FROM grados WHERE nivel = ? AND nombre = ? AND seccion = ? LIMIT 1');
+    if (!$gradeQ) json_response(false, 'Error al consultar grados', null, 500);
+    $gradeQ->bind_param('sss', $nivel, $grado, $seccion);
+    $gradeQ->execute();
+    $gradeRow = $gradeQ->get_result()->fetch_assoc();
+    if (!$gradeRow) json_response(false, 'No existe grado para ese nivel, nombre de grado y seccion', null, 422);
 
-    $cup = $conn->prepare('SELECT c.id, c.cupos, COUNT(i.id) AS inscritos FROM clases c LEFT JOIN inscripciones i ON i.clase_id = c.id WHERE c.id = ? GROUP BY c.id, c.cupos');
-    $cup->bind_param('i', $claseId);
-    $cup->execute();
-    $cupInfo = $cup->get_result()->fetch_assoc();
-    if (!$cupInfo) json_response(false, 'Clase no encontrada', null, 404);
-    if ((int)$cupInfo['inscritos'] >= (int)$cupInfo['cupos']) json_response(false, 'No hay cupos disponibles en la clase', null, 409);
+    $usedQ = $conn->prepare("SELECT COUNT(*) AS inscritos FROM usuarios WHERE rol IN ('alumno','estudiante') AND nivel = ? AND grado = ? AND seccion = ?");
+    if (!$usedQ) json_response(false, 'Error al validar cupos del grado', null, 500);
+    $usedQ->bind_param('sss', $nivel, $grado, $seccion);
+    $usedQ->execute();
+    $inscritos = (int)($usedQ->get_result()->fetch_assoc()['inscritos'] ?? 0);
+    $cuposGrado = (int)$gradeRow['cupos'];
+    if ($inscritos >= $cuposGrado) json_response(false, 'No hay cupos disponibles en el grado/seccion', null, 409);
 
-    $stmt = $conn->prepare('INSERT INTO usuarios(nombre, username, email, password_hash, rol, fecha_nacimiento, edad, nivel, seccion, ciclo_escolar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->bind_param('ssssssisss', $nombreCompleto, $username, $email, $hash, $rol, $fechaNac, $edad, $nivel, $seccion, $ciclo);
+    $stmt = $conn->prepare('INSERT INTO usuarios(nombre, username, email, password_hash, rol, fecha_nacimiento, edad, nivel, grado, seccion, ciclo_escolar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    if (!$stmt) json_response(false, 'Error al crear usuario alumno', null, 500);
+    $stmt->bind_param('ssssssissss', $nombreCompleto, $username, $email, $hash, $rol, $fechaNac, $edad, $nivel, $grado, $seccion, $ciclo);
     if (!$stmt->execute()) json_response(false, 'No se pudo registrar', null, 500);
 
     $newId = $stmt->insert_id;
-    $ins = $conn->prepare('INSERT INTO inscripciones(clase_id, estudiante_id) VALUES (?, ?)');
-    $ins->bind_param('ii', $claseId, $newId);
-    if (!$ins->execute()) json_response(false, 'Usuario creado, pero no se pudo inscribir', null, 500);
+
+    // Si ya hay cursos creados para ese grado/seccion, inscribir al alumno en todos.
+    $classIds = [];
+    $findClasses = $conn->prepare('SELECT id FROM clases WHERE nivel = ? AND grado = ? AND seccion = ?');
+    if (!$findClasses) json_response(false, 'Error al consultar cursos del grado', null, 500);
+    $findClasses->bind_param('sss', $nivel, $grado, $seccion);
+    $findClasses->execute();
+    $resClasses = $findClasses->get_result();
+    while ($row = $resClasses->fetch_assoc()) {
+        $classIds[] = (int)$row['id'];
+    }
+    if (!empty($classIds)) {
+        $ins = $conn->prepare('INSERT IGNORE INTO inscripciones(clase_id, estudiante_id) VALUES (?, ?)');
+        if (!$ins) json_response(false, 'Error al preparar inscripcion en cursos', null, 500);
+        foreach ($classIds as $classId) {
+            $ins->bind_param('ii', $classId, $newId);
+            if (!$ins->execute()) json_response(false, 'Usuario creado, pero no se pudo inscribir en cursos existentes', null, 500);
+        }
+    }
 
     json_response(true, 'Alumno creado correctamente', [
       'username' => $username,

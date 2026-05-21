@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(false, 'Usuario no encontrado', null, 404);
     }
     if ($t['rol'] === 'control') {
-        json_response(false, 'El usuario Control es exclusivo y no editable', null, 403);
+        $rol = 'control';
     }
 
     if (!only_letters_spaces($nombres) || !only_letters_spaces($apellidos)) {

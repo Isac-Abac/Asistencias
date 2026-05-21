@@ -133,34 +133,44 @@ function require_previous_grade($conn, $nivel, $gradoActual, $gradoPrevio, $secc
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     require_login();
     $stmt = $conn->prepare("SELECT g.id, g.nombre, g.nivel, g.grado_primaria, g.grado_basico, g.grado_diversificado, g.carrera, g.seccion, g.cupos, g.docente_guia_id,
-                                   u.nombre AS docente_guia,
-                                   COALESCE((
-                                     SELECT COUNT(DISTINCT i.estudiante_id)
-                                     FROM inscripciones i
-                                     INNER JOIN clases c ON c.id = i.clase_id
-                                     WHERE c.nivel = g.nivel
-                                       AND c.grado = g.nombre
-                                       AND c.seccion = g.seccion
-                                   ), 0) AS inscritos,
-                                   GREATEST(g.cupos - COALESCE((
-                                     SELECT COUNT(DISTINCT i2.estudiante_id)
-                                     FROM inscripciones i2
-                                     INNER JOIN clases c2 ON c2.id = i2.clase_id
-                                     WHERE c2.nivel = g.nivel
-                                       AND c2.grado = g.nombre
-                                       AND c2.seccion = g.seccion
-                                   ), 0), 0) AS cupos_disponibles,
-                                   CASE
-                                       WHEN g.nivel='Primaria' THEN g.grado_primaria
-                                       WHEN g.nivel='Basico' THEN g.grado_basico
-                                       WHEN g.nivel='Diversificado' THEN CONCAT(g.grado_diversificado, ' - ', g.carrera)
-                                       ELSE g.nombre
-                                   END AS grado_mostrar
+                                   u.nombre AS docente_guia
                             FROM grados g
                             LEFT JOIN usuarios u ON u.id = g.docente_guia_id
                             ORDER BY g.nivel, g.id DESC");
+    if (!$stmt) json_response(false, 'Error al consultar grados', null, 500);
     $stmt->execute();
-    json_response(true, 'OK', $stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    $countStmt = $conn->prepare("SELECT COUNT(DISTINCT ux.id) AS inscritos
+                                 FROM usuarios ux
+                                 LEFT JOIN inscripciones i ON i.estudiante_id = ux.id
+                                 LEFT JOIN clases c ON c.id = i.clase_id
+                                 WHERE ux.rol IN ('alumno','estudiante')
+                                   AND (
+                                     (ux.nivel = ? AND ux.grado = ? AND ux.seccion = ?)
+                                     OR
+                                     (c.nivel = ? AND c.grado = ? AND c.seccion = ?)
+                                   )");
+    if (!$countStmt) json_response(false, 'Error al calcular cupos', null, 500);
+
+    foreach ($rows as &$r) {
+        $nivel = (string)$r['nivel'];
+        $nombre = (string)$r['nombre'];
+        $seccion = (string)$r['seccion'];
+        $countStmt->bind_param('ssssss', $nivel, $nombre, $seccion, $nivel, $nombre, $seccion);
+        $countStmt->execute();
+        $ins = (int)($countStmt->get_result()->fetch_assoc()['inscritos'] ?? 0);
+        $cupos = (int)($r['cupos'] ?? 0);
+        $r['inscritos'] = $ins;
+        $r['cupos_disponibles'] = max($cupos - $ins, 0);
+        if ($r['nivel'] === 'Primaria') $r['grado_mostrar'] = $r['grado_primaria'];
+        elseif ($r['nivel'] === 'Basico') $r['grado_mostrar'] = $r['grado_basico'];
+        elseif ($r['nivel'] === 'Diversificado') $r['grado_mostrar'] = trim(($r['grado_diversificado'] ?? '') . ' - ' . ($r['carrera'] ?? ''), ' -');
+        else $r['grado_mostrar'] = $r['nombre'];
+    }
+    unset($r);
+
+    json_response(true, 'OK', $rows);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
