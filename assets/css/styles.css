@@ -19,7 +19,78 @@ body {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: 24px;
+  position: relative;
+}
+.auth-container::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(50rem 30rem at -10% -10%, rgba(15,118,110,.14), transparent 55%),
+    radial-gradient(40rem 24rem at 110% 10%, rgba(14,165,160,.12), transparent 52%);
+}
+.auth-shell {
+  width: min(920px, 100%);
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 24px;
+  align-items: stretch;
+}
+.auth-hero {
+  background: linear-gradient(155deg, rgba(15,118,110,.18), rgba(15,118,110,.04));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+.auth-badge {
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15,118,110,.18);
+  color: #0b4f49;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .4px;
+}
+[data-theme="dark"] .auth-badge {
+  color: #99f6e4;
+  background: rgba(20,184,166,.2);
+}
+.auth-hero h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.08;
+}
+.auth-hero p {
+  margin: 0;
+  opacity: .85;
+  max-width: 42ch;
+}
+.auth-card {
+  border-radius: 18px;
+  padding: 24px;
+  gap: 12px;
+  align-content: center;
+}
+.auth-card h2 {
+  margin: 0 0 6px;
+}
+.auth-label {
+  font-size: 13px;
+  opacity: .9;
+  font-weight: 600;
+}
+.auth-card input {
+  background: color-mix(in srgb, var(--card) 92%, #94a3b8 8%);
+}
+.auth-card button[type="submit"] {
+  margin-top: 8px;
+  font-weight: 700;
 }
 .card {
   background: var(--card);
@@ -71,6 +142,16 @@ th, td {
   font-size: 14px;
 }
 @media (max-width: 768px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .auth-hero {
+    padding: 18px;
+  }
+  .auth-card {
+    padding: 18px;
+  }
   .topbar h1 { font-size: 16px; }
 }
 textarea { min-height: 90px; resize: vertical; }
@@ -169,6 +250,31 @@ textarea { min-height: 90px; resize: vertical; }
   margin: 10px 0;
   opacity: .8;
   font-size: 13px;
+}
+
+.assign-board {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+.assign-board-title {
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px;
+}
+#assignBoardTable th,
+#assignBoardTable td {
+  text-align: center;
+  vertical-align: middle;
+  min-width: 120px;
+}
+#assignBoardTable td.course-filled {
+  background: color-mix(in srgb, var(--primary) 16%, var(--card) 84%);
+  font-weight: 600;
 }
 
 

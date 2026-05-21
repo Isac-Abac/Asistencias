@@ -7,16 +7,54 @@ function only_letters_spaces($text) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     require_role(['admin']);
-    $rows = $conn->query('SELECT id, nombre, username, email, rol, creado_en FROM usuarios ORDER BY id DESC')->fetch_all(MYSQLI_ASSOC);
+    $rows = $conn->query("
+        SELECT
+            u.id,
+            u.nombre,
+            u.username,
+            u.email,
+            u.rol,
+            u.fecha_nacimiento,
+            u.edad,
+            u.nivel,
+            u.seccion,
+            u.ciclo_escolar,
+            u.creado_en,
+            (
+                SELECT c.grado
+                FROM inscripciones i
+                INNER JOIN clases c ON c.id = i.clase_id
+                WHERE i.estudiante_id = u.id
+                ORDER BY i.id DESC
+                LIMIT 1
+            ) AS grado
+        FROM usuarios u
+        ORDER BY u.id DESC
+    ")->fetch_all(MYSQLI_ASSOC);
 
     foreach ($rows as &$r) {
-        $r['qr_payload'] = json_encode([
+        $payload = [
             'id' => (int)$r['id'],
             'nombre' => $r['nombre'],
             'username' => $r['username'],
             'email' => $r['email'],
-            'rol' => $r['rol']
-        ], JSON_UNESCAPED_UNICODE);
+            'rol' => $r['rol'],
+            'creado_en' => $r['creado_en']
+        ];
+
+        if ($r['rol'] === 'alumno' || $r['rol'] === 'estudiante') {
+            $payload['fecha_nacimiento'] = $r['fecha_nacimiento'];
+            $payload['edad'] = $r['edad'];
+            $payload['nivel'] = $r['nivel'];
+            $payload['grado'] = $r['grado'];
+            $payload['seccion'] = $r['seccion'];
+            $payload['ciclo_escolar'] = $r['ciclo_escolar'];
+        } elseif ($r['rol'] === 'docente') {
+            $payload['fecha_nacimiento'] = $r['fecha_nacimiento'];
+            $payload['edad'] = $r['edad'];
+        }
+
+        $r['qr_payload'] = json_encode($payload, JSON_UNESCAPED_UNICODE);
     }
 
     json_response(true, 'OK', $rows);

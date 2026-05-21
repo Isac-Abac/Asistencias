@@ -29,6 +29,57 @@ function ensure_grados_table($conn) {
 
 ensure_grados_table($conn);
 
+function normalize_grade_name($nivel, $input) {
+    $s = trim(mb_strtolower($input));
+    if ($s === '') return '';
+
+    $mapPrimaria = [
+        'primero' => '1ro', '1ro' => '1ro', '1º' => '1ro', '1' => '1ro',
+        'segundo' => '2do', '2do' => '2do', '2º' => '2do', '2' => '2do',
+        'tercero' => '3ro', '3ro' => '3ro', '3º' => '3ro', '3' => '3ro',
+        'cuarto' => '4to', '4to' => '4to', '4º' => '4to', '4' => '4to',
+        'quinto' => '5to', '5to' => '5to', '5º' => '5to', '5' => '5to',
+        'sexto' => '6to', '6to' => '6to', '6º' => '6to', '6' => '6to',
+    ];
+
+    $mapBasico = [
+        'primero' => '1ro', '1ro' => '1ro', '1' => '1ro',
+        'segundo' => '2do', '2do' => '2do', '2' => '2do',
+        'tercero' => '3ro', '3ro' => '3ro', '3' => '3ro',
+    ];
+
+    $mapDivers = [
+        'cuarto' => '4to', '4to' => '4to', '4' => '4to',
+        'quinto' => '5to', '5to' => '5to', '5' => '5to',
+        'sexto' => '6to', '6to' => '6to', '6' => '6to',
+    ];
+
+    if ($nivel === 'Primaria') {
+        foreach ($mapPrimaria as $k => $v) {
+            if (mb_strpos($s, $k) !== false) {
+                return $v . ' primaria';
+            }
+        }
+    }
+    if ($nivel === 'Basico') {
+        foreach ($mapBasico as $k => $v) {
+            if (mb_strpos($s, $k) !== false) {
+                return $v . ' basico';
+            }
+        }
+    }
+    if ($nivel === 'Diversificado') {
+        foreach ($mapDivers as $k => $v) {
+            if (mb_strpos($s, $k) !== false) {
+                return $v . ' diversificado';
+            }
+        }
+    }
+
+    // If nothing matched, return original trimmed input
+    return $input;
+}
+
 function require_previous_grade($conn, $nivel, $gradoActual, $gradoPrevio, $seccion, $carrera = null) {
     if ($gradoActual === $gradoPrevio || $gradoPrevio === null) {
         return;
@@ -38,15 +89,44 @@ function require_previous_grade($conn, $nivel, $gradoActual, $gradoPrevio, $secc
         $stmt = $conn->prepare('SELECT id FROM grados WHERE nivel = ? AND grado_diversificado = ? AND carrera = ? LIMIT 1');
         $stmt->bind_param('sss', $nivel, $gradoPrevio, $carrera);
     } else {
-        $stmt = $conn->prepare('SELECT id FROM grados WHERE nivel = ? AND nombre = ? AND seccion = ? LIMIT 1');
-        $stmt->bind_param('sss', $nivel, $gradoPrevio, $seccion);
+        // Buscar por el nombre original o por una forma parcial (p.ej. '1ro')
+        $prevNorm = normalize_grade_name($nivel, $gradoPrevio);
+
+        // Extraer el identificador corto del grado (1ro, 2do, 3ro, 4to...)
+        $short = null;
+        if (preg_match('/(1ro|2do|3ro|4to|5to|6to)/i', $prevNorm, $m)) {
+            $short = $m[1];
+        }
+
+        if ($short) {
+            $like = "%" . $short . "%";
+            $stmt = $conn->prepare(
+                'SELECT id FROM grados WHERE nivel = ? AND (
+                     nombre LIKE ? OR nombre = ? OR
+                     grado_primaria LIKE ? OR grado_primaria = ? OR
+                     grado_basico LIKE ? OR grado_basico = ?
+                 ) LIMIT 1'
+            );
+            $stmt->bind_param('sssssss', $nivel, $like, $prevNorm, $like, $prevNorm, $like, $prevNorm);
+        } else {
+            $stmt = $conn->prepare(
+                'SELECT id FROM grados WHERE nivel = ? AND (
+                     nombre = ? OR nombre = ? OR
+                     grado_primaria = ? OR grado_primaria = ? OR
+                     grado_basico = ? OR grado_basico = ?
+                 ) LIMIT 1'
+            );
+            $stmt->bind_param('sssssss', $nivel, $gradoPrevio, $prevNorm, $gradoPrevio, $prevNorm, $gradoPrevio, $prevNorm);
+        }
     }
     $stmt->execute();
     if ($stmt->get_result()->num_rows === 0) {
+        // Log para depuración: qué se intentó buscar y no se encontró
+        error_log("[grades] require_previous_grade failed: nivel={$nivel}, gradoActual={$gradoActual}, gradoPrevio={$gradoPrevio}, prevNorm={$prevNorm}, seccion={$seccion}");
         if ($nivel === 'Diversificado') {
             json_response(false, "No se puede crear {$gradoActual} para la carrera {$carrera} sin existir antes {$gradoPrevio}", null, 422);
         }
-        json_response(false, "No se puede crear {$gradoActual} sin existir antes {$gradoPrevio} en la seccion {$seccion}", null, 422);
+        json_response(false, "No se puede crear {$gradoActual} sin existir antes {$gradoPrevio}", null, 422);
     }
 }
 
@@ -54,6 +134,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     require_login();
     $stmt = $conn->prepare("SELECT g.id, g.nombre, g.nivel, g.grado_primaria, g.grado_basico, g.grado_diversificado, g.carrera, g.seccion, g.cupos, g.docente_guia_id,
                                    u.nombre AS docente_guia,
+                                   COALESCE((
+                                     SELECT COUNT(DISTINCT i.estudiante_id)
+                                     FROM inscripciones i
+                                     INNER JOIN clases c ON c.id = i.clase_id
+                                     WHERE c.nivel = g.nivel
+                                       AND c.grado = g.nombre
+                                       AND c.seccion = g.seccion
+                                   ), 0) AS inscritos,
+                                   GREATEST(g.cupos - COALESCE((
+                                     SELECT COUNT(DISTINCT i2.estudiante_id)
+                                     FROM inscripciones i2
+                                     INNER JOIN clases c2 ON c2.id = i2.clase_id
+                                     WHERE c2.nivel = g.nivel
+                                       AND c2.grado = g.nombre
+                                       AND c2.seccion = g.seccion
+                                   ), 0), 0) AS cupos_disponibles,
                                    CASE
                                        WHEN g.nivel='Primaria' THEN g.grado_primaria
                                        WHEN g.nivel='Basico' THEN g.grado_basico
@@ -79,6 +175,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $seccion = trim($data['seccion'] ?? '');
     $cupos = (int)($data['cupos'] ?? 0);
     $docenteGuiaId = (int)($data['docente_guia_id'] ?? 0);
+
+    // Normalizar entradas comunes (acepta variantes como "primero primaria")
+    $gradoPrimaria = normalize_grade_name($nivel, $gradoPrimaria);
+    $gradoBasico = normalize_grade_name($nivel, $gradoBasico);
+    $gradoDiversificado = normalize_grade_name($nivel, $gradoDiversificado);
 
     if ($nivel === '' || $seccion === '' || $cupos <= 0 || $docenteGuiaId <= 0) {
         json_response(false, 'Nivel, seccion, cupos y docente guia son obligatorios', null, 422);
@@ -155,13 +256,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         json_response(false, 'Docente guia invalido', null, 422);
     }
 
+    $docInUse = $conn->prepare('SELECT id FROM grados WHERE docente_guia_id = ? LIMIT 1');
+    $docInUse->bind_param('i', $docenteGuiaId);
+    $docInUse->execute();
+    if ($docInUse->get_result()->num_rows > 0) {
+        json_response(false, 'Ese docente ya esta asignado a un grado', null, 422);
+    }
+
     if ($seccion !== 'A') {
         $prev = chr(ord($seccion) - 1);
-        $checkPrev = $conn->prepare('SELECT id FROM grados WHERE nombre = ? AND nivel = ? AND seccion = ? LIMIT 1');
+        $checkPrev = $conn->prepare('SELECT id, cupos FROM grados WHERE nombre = ? AND nivel = ? AND seccion = ? LIMIT 1');
         $checkPrev->bind_param('sss', $nombre, $nivel, $prev);
         $checkPrev->execute();
-        if ($checkPrev->get_result()->num_rows === 0) {
+        $prevRow = $checkPrev->get_result()->fetch_assoc();
+        if (!$prevRow) {
             json_response(false, "No se puede crear seccion {$seccion} sin existir antes la seccion {$prev}", null, 422);
+        }
+
+        // No abrir nueva seccion mientras la anterior tenga cupos disponibles.
+        $usedQ = $conn->prepare('SELECT COUNT(DISTINCT i.estudiante_id) AS usados
+                                 FROM inscripciones i
+                                 INNER JOIN clases c ON c.id = i.clase_id
+                                 WHERE c.nivel = ? AND c.grado = ? AND c.seccion = ?');
+        $usedQ->bind_param('sss', $nivel, $nombre, $prev);
+        $usedQ->execute();
+        $used = (int)($usedQ->get_result()->fetch_assoc()['usados'] ?? 0);
+        $cuposPrev = (int)$prevRow['cupos'];
+        if ($used < $cuposPrev) {
+            $disp = $cuposPrev - $used;
+            json_response(false, "No se puede crear seccion {$seccion}: la seccion {$prev} aun tiene {$disp} cupos disponibles", null, 422);
         }
     }
 

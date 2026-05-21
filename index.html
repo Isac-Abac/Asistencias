@@ -11,25 +11,32 @@
 <body>
   <button id="themeToggleBtn" class="theme-toggle" type="button">Modo oscuro</button>
   <main class="auth-container">
-    <h1>Control de Asistencias</h1>
-    <p>Ingreso por cuentas para docentes y estudiantes</p>
-
-    <form id="loginForm" class="card">
-      <h2>Iniciar sesion</h2>
-      <input type="text" id="identifier" placeholder="Correo o nombre de usuario" required>
-      <div class="password-wrap">
-        <input type="password" id="password" placeholder="Contrasena" required>
-        <button type="button" id="togglePasswordBtn" class="secondary-btn eye-btn" aria-label="Mostrar contrasena" title="Mostrar/Ocultar contrasena">
-          <svg id="eyeOpenIcon" class="eye-svg" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5C6.5 5 2.1 8.4 1 12c1.1 3.6 5.5 7 11 7s9.9-3.4 11-7c-1.1-3.6-5.5-7-11-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"></path>
-          </svg>
-          <svg id="eyeClosedIcon" class="eye-svg hidden" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m3 4.3 1.4-1.4 16.3 16.3-1.4 1.4-3-3A13.3 13.3 0 0 1 12 19c-5.5 0-9.9-3.4-11-7 .6-2 2.2-3.8 4.3-5.1L3 4.3Zm6.2 6.2a4 4 0 0 0 4.3 4.3l-4.3-4.3ZM12 5c5.5 0 9.9 3.4 11 7-.4 1.3-1.2 2.6-2.3 3.7l-2.2-2.2A6 6 0 0 0 10.5 5.5L8.8 3.8c1-.5 2.1-.8 3.2-.8Z"></path>
-          </svg>
-        </button>
+    <section class="auth-shell">
+      <div class="auth-hero">
+        <span class="auth-badge">Control QR</span>
+        <h1>Control de Asistencias</h1>
+        <p>Acceso seguro para administracion, docentes y estudiantes.</p>
       </div>
-      <button type="submit">Entrar</button>
-        </form>
+
+      <form id="loginForm" class="card auth-card">
+        <h2>Iniciar sesion</h2>
+        <label class="auth-label" for="identifier">Usuario o correo</label>
+        <input type="text" id="identifier" placeholder="ejemplo@correo.com o usuario" required>
+        <label class="auth-label" for="password">Contrasena</label>
+        <div class="password-wrap">
+          <input type="password" id="password" placeholder="Ingresa tu contrasena" required>
+          <button type="button" id="togglePasswordBtn" class="secondary-btn eye-btn" aria-label="Mostrar contrasena" title="Mostrar/Ocultar contrasena">
+            <svg id="eyeOpenIcon" class="eye-svg" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5C6.5 5 2.1 8.4 1 12c1.1 3.6 5.5 7 11 7s9.9-3.4 11-7c-1.1-3.6-5.5-7-11-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"></path>
+            </svg>
+            <svg id="eyeClosedIcon" class="eye-svg hidden" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m3 4.3 1.4-1.4 16.3 16.3-1.4 1.4-3-3A13.3 13.3 0 0 1 12 19c-5.5 0-9.9-3.4-11-7 .6-2 2.2-3.8 4.3-5.1L3 4.3Zm6.2 6.2a4 4 0 0 0 4.3 4.3l-4.3-4.3ZM12 5c5.5 0 9.9 3.4 11 7-.4 1.3-1.2 2.6-2.3 3.7l-2.2-2.2A6 6 0 0 0 10.5 5.5L8.8 3.8c1-.5 2.1-.8 3.2-.8Z"></path>
+            </svg>
+          </button>
+        </div>
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
   </main>
   <script src="assets/js/auth.js"></script>
 </body>

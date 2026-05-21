@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     require_login();
     $user = $_SESSION['user'];
 
-    $base = "SELECT c.id, c.nombre, c.codigo, c.horario, c.grado, c.nivel, c.seccion, c.ciclo_escolar, c.cupos,
+    $base = "SELECT c.id, c.nombre, c.codigo, c.horario, c.dia, c.grado, c.nivel, c.seccion, c.ciclo_escolar, c.cupos,
                 (c.cupos - COUNT(i.id)) AS cupos_disponibles
              FROM clases c
              LEFT JOIN inscripciones i ON i.clase_id = c.id";
@@ -69,6 +69,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $docenteId = (int)$grade['docente_guia_id'];
     $cupos = (int)$grade['cupos'];
+
+    $slotQ = $conn->prepare('SELECT id FROM clases WHERE nivel = ? AND grado = ? AND seccion = ? AND dia = ? AND horario = ? LIMIT 1');
+    $slotQ->bind_param('sssss', $nivel, $grado, $seccion, $dia, $horario);
+    $slotQ->execute();
+    if ($slotQ->get_result()->num_rows > 0) {
+        json_response(false, 'Esa hora ya esta asignada para ese grado/seccion en ese dia', null, 409);
+    }
+
     $ciclo = '';
     $codigo = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $nombre), 0, 4))
         . '-' . strtoupper(substr($dia, 0, 2))

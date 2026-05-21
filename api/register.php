@@ -7,6 +7,15 @@ function calc_age($birthDate) {
     return $birth->diff($today)->y;
 }
 
+function valid_birthdate_with_min_age($birthDate, $minAge) {
+    $birth = DateTime::createFromFormat('Y-m-d', $birthDate);
+    if (!$birth || $birth->format('Y-m-d') !== $birthDate) return false;
+    $today = new DateTime('today');
+    if ($birth > $today) return false;
+    $maxAllowed = (clone $today)->modify("-{$minAge} years");
+    return $birth <= $maxAllowed;
+}
+
 function only_letters_spaces($text) {
     return preg_match('/^[\p{L}\s]+$/u', $text) === 1;
 }
@@ -64,12 +73,20 @@ $hash = password_hash($password, PASSWORD_BCRYPT);
 if ($rol === 'alumno') {
     $fechaNac = trim($data['fecha_nacimiento'] ?? '');
     $nivel = trim($data['nivel'] ?? '');
+    $grado = trim($data['grado'] ?? '');
     $seccion = trim($data['seccion'] ?? '');
     $ciclo = trim($data['ciclo_escolar'] ?? '');
-    $claseId = (int)($data['clase_id'] ?? 0);
-    if (!$fechaNac || !$nivel || !$seccion || !$ciclo || $claseId <= 0) json_response(false, 'Para alumno: fecha, nivel, seccion, ciclo y clase son obligatorios', null, 422);
+    if (!$fechaNac || !$nivel || !$grado || !$seccion || !$ciclo) json_response(false, 'Para alumno: fecha, nivel, nombre de grado, seccion y ciclo son obligatorios', null, 422);
+    if (!valid_birthdate_with_min_age($fechaNac, 7)) json_response(false, 'Fecha de nacimiento invalida para alumno (minimo 7 anos y no futura)', null, 422);
     $edad = calc_age($fechaNac);
-    if ($edad < 3 || $edad > 100) json_response(false, 'Edad invalida para registro', null, 422);
+    if ($edad < 7 || $edad > 100) json_response(false, 'Edad invalida para registro', null, 422);
+
+    $findClase = $conn->prepare('SELECT c.id FROM clases c WHERE c.nivel = ? AND c.grado = ? AND c.seccion = ? ORDER BY c.id ASC LIMIT 1');
+    $findClase->bind_param('sss', $nivel, $grado, $seccion);
+    $findClase->execute();
+    $claseRow = $findClase->get_result()->fetch_assoc();
+    if (!$claseRow) json_response(false, 'No existe curso asignado para ese nivel, grado y seccion', null, 422);
+    $claseId = (int)$claseRow['id'];
 
     $cup = $conn->prepare('SELECT c.id, c.cupos, COUNT(i.id) AS inscritos FROM clases c LEFT JOIN inscripciones i ON i.clase_id = c.id WHERE c.id = ? GROUP BY c.id, c.cupos');
     $cup->bind_param('i', $claseId);
@@ -96,6 +113,7 @@ if ($rol === 'alumno') {
 
 $fechaNacDoc = trim($data['fecha_nacimiento'] ?? '');
 if (!$fechaNacDoc) json_response(false, 'Fecha de nacimiento requerida para docente', null, 422);
+if (!valid_birthdate_with_min_age($fechaNacDoc, 18)) json_response(false, 'Fecha de nacimiento invalida para docente (minimo 18 anos y no futura)', null, 422);
 $edadDoc = calc_age($fechaNacDoc);
 if ($edadDoc < 18 || $edadDoc > 100) json_response(false, 'Edad invalida para docente', null, 422);
 
