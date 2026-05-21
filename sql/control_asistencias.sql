@@ -1,4 +1,6 @@
-﻿CREATE DATABASE IF NOT EXISTS Control CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- Archivo: sql/control_asistencias.sql
+-- Descripcion: Script SQL de estructura y datos base del sistema.
+CREATE DATABASE IF NOT EXISTS Control CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Control;
 
 CREATE TABLE IF NOT EXISTS usuarios (

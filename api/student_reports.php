@@ -1,4 +1,7 @@
-﻿<?php
+<?php
+// Archivo: api/student_reports.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 require_once __DIR__ . '/bootstrap.php';
 
 function ensure_reportes_origen_column($conn) {

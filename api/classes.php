@@ -1,4 +1,7 @@
-﻿<?php
+<?php
+// Archivo: api/classes.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 require_once __DIR__ . '/bootstrap.php';
 
 function ensure_classes_table($conn) {

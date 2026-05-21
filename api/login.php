@@ -1,4 +1,7 @@
 <?php
+// Archivo: api/login.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 require_once __DIR__ . '/bootstrap.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

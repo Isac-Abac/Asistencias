@@ -1,4 +1,7 @@
 <?php
+// Archivo: api/grades.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 require_once __DIR__ . '/bootstrap.php';
 
 function ensure_grados_table($conn) {

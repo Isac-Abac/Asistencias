@@ -1,4 +1,7 @@
-﻿<?php
+<?php
+// Archivo: api/register.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 require_once __DIR__ . '/bootstrap.php';
 
 function ensure_register_schema($conn) {

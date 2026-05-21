@@ -1,4 +1,7 @@
-﻿<?php
+<?php
+// Archivo: api/bootstrap.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/conexion.php';

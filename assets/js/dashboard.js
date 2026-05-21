@@ -1,3 +1,5 @@
+// Archivo: assets/js/dashboard.js
+// Descripcion: Script de logica e interaccion del sistema de asistencias.
 const userInfo = document.getElementById('userInfo');
 const adminModule = document.getElementById('adminModule');
 const teacherModule = document.getElementById('teacherModule');

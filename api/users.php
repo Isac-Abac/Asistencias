@@ -1,4 +1,7 @@
-﻿<?php
+<?php
+// Archivo: api/users.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 require_once __DIR__ . '/bootstrap.php';
 
 function only_letters_spaces($text) {

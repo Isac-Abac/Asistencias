@@ -1,4 +1,7 @@
-﻿<?php
+<?php
+// Archivo: config/conexion.php
+// Descripcion: Archivo backend del sistema de control de asistencias.
+
 
 $Servidor = "localhost";
 $Usuario = "root";

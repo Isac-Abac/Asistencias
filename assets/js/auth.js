@@ -1,3 +1,5 @@
+// Archivo: assets/js/auth.js
+// Descripcion: Script de logica e interaccion del sistema de asistencias.
 const form = document.getElementById('loginForm');
 const togglePasswordBtn = document.getElementById('togglePasswordBtn');
 const eyeOpenIcon = document.getElementById('eyeOpenIcon');
