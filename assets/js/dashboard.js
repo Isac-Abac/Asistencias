@@ -12,6 +12,8 @@ let myStudentsCache = [];
 let todayReportsByStudent = new Set();
 let scannerStarted = false;
 let currentUser = null;
+let controlInfoTimer = null;
+let controlScanCooldown = false;
 const HORARIOS = ['07:30-08:10','08:10-08:50','08:50-09:30','09:30-10:05','10:45-11:20','11:20-11:55','11:55-12:30'];
 const DIAS = ['Lunes','Martes','Miercoles','Jueves','Viernes'];
 
@@ -123,6 +125,11 @@ function switchTeacherView(view){
     v.classList.toggle('view-anim', active);
   });
   animateTeacherView(view);
+  if (view === 'attendances') loadTeacherAttendances();
+}
+function switchStudentView(view){
+  document.querySelectorAll('[data-student-view]').forEach(b=>b.classList.toggle('active',b.dataset.studentView===view));
+  document.querySelectorAll('#studentModule .teacher-view').forEach(v=>v.classList.toggle('hidden', v.id!==`studentView-${view}`));
 }
 function fillSimpleSelect(id,list,placeholder){ const el=document.getElementById(id); if(!el) return; el.innerHTML=`<option value="">${placeholder}</option>`; list.forEach(v=>{const op=document.createElement('option'); op.value=v; op.textContent=v; el.appendChild(op);}); }
 
@@ -460,9 +467,7 @@ function fillDynamic(){
     }
   }
   updateAlumnoGradoSeccion();
-  const teacherClass=document.getElementById('tRepClase'); if(teacherClass){ teacherClass.innerHTML='<option value="">Todas / Seleccione</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; teacherClass.appendChild(op);}); }
   const reportClass=document.getElementById('reportClaseDocente'); if(reportClass){ reportClass.innerHTML='<option value="">Seleccione clase</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; reportClass.appendChild(op);}); }
-  const controlClase=document.getElementById('controlClase'); if(controlClase){ controlClase.innerHTML='<option value="">Seleccione clase</option>'; classesCache.forEach(c=>{const op=document.createElement('option'); op.value=c.id; op.textContent=`${c.nombre} (${c.codigo})`; controlClase.appendChild(op);}); }
   const classGrado=document.getElementById('classGrado');
   const nivelSel = document.getElementById('classNivel')?.value || '';
   const gradoSelPrev = document.getElementById('classGrado')?.value || '';
@@ -478,6 +483,7 @@ function fillDynamic(){
   updateClassSecciones();
   updateHorarioLocks();
   renderAssignBoard();
+  fillCarrerasExistentes();
   updateAdminReportFilters();
   setReportDateLimit();
   updateGradeLocks();
@@ -496,6 +502,7 @@ function toggleGradeFields(){
   const basico=document.getElementById('gradeBasico');
   const diversificado=document.getElementById('gradeDiversificado');
   const carrera=document.getElementById('gradeCarrera');
+  const carreraRow=document.getElementById('gradeCarreraRow');
   if(!primaria||!basico||!diversificado||!carrera) return;
   const showPrim=nivel==='Primaria';
   const showBas=nivel==='Basico';
@@ -503,8 +510,26 @@ function toggleGradeFields(){
   primaria.classList.toggle('hidden',!showPrim); primaria.required=showPrim; if(!showPrim) primaria.value='';
   basico.classList.toggle('hidden',!showBas); basico.required=showBas; if(!showBas) basico.value='';
   diversificado.classList.toggle('hidden',!showCarr); diversificado.required=showCarr; if(!showCarr) diversificado.value='';
-  carrera.classList.toggle('hidden',!showCarr); carrera.required=showCarr; if(!showCarr) carrera.value='';
+  if (carreraRow) carreraRow.classList.toggle('hidden',!showCarr);
+  carrera.required=showCarr; if(!showCarr) carrera.value='';
   updateGradeLocks();
+}
+
+function fillCarrerasExistentes(){
+  const sel = document.getElementById('gradeCarreraExistente');
+  if(!sel) return;
+  const carreras = [...new Set(
+    gradesCache
+      .filter(g => g.nivel === 'Diversificado')
+      .map(g => String(g.carrera || '').trim())
+      .filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b,'es'));
+  sel.innerHTML = '<option value="">Elegir carrera existente</option>';
+  carreras.forEach(c => {
+    const op=document.createElement('option');
+    op.value=c; op.textContent=c;
+    sel.appendChild(op);
+  });
 }
 
 function resetByRoleChange() {
@@ -553,14 +578,15 @@ function resetByNivelChange() {
 async function loadUsers(){ const r=await api('api/users.php'); if(!r.ok) return alertErr(r.message); usersCache=Array.isArray(r.data)?r.data:[]; renderUsers(); fillDynamic(); }
 async function loadClasses(){ const r=await api('api/classes.php'); if(!r.ok) return; classesCache=Array.isArray(r.data)?r.data:[]; fillDynamic(); }
 async function loadGrades(){ const r=await api('api/grades.php'); if(!r.ok) return; gradesCache=Array.isArray(r.data)?r.data:[]; renderGrades(); fillDynamic(); }
-async function loadTeacherReportsToday(){
-  const today = dateISO(new Date());
-  const r = await api('api/student_reports.php');
+async function loadTeacherReportsToday(dateValue = ''){
+  const q = new URLSearchParams();
+  if (dateValue) q.set('fecha', dateValue);
+  else q.set('today', '1');
+  const r = await api(`api/student_reports.php?${q.toString()}`);
   if (!r.ok) { todayReportsByStudent = new Set(); return; }
   const rows = Array.isArray(r.data) ? r.data : [];
   todayReportsByStudent = new Set(
     rows
-      .filter(x => String(x.fecha || '') === today)
       .map(x => Number(x.alumno_id))
       .filter(n => n > 0)
   );
@@ -569,7 +595,7 @@ function renderTeacherAttendanceList(){
   const tb=document.querySelector('#teacherReportTable tbody');
   if(!tb) return;
   tb.innerHTML='';
-  const today = dateISO(new Date());
+  const selected = document.getElementById('teacherReportDate')?.value || dateISO(new Date());
   if (!myStudentsCache.length) {
     const tr=document.createElement('tr');
     tr.innerHTML='<td colspan="3">No hay alumnos asignados a este grado.</td>';
@@ -579,7 +605,7 @@ function renderTeacherAttendanceList(){
   myStudentsCache.forEach(st=>{
     const hasReport = todayReportsByStudent.has(Number(st.id));
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${today}</td><td><button type="button" class="link-btn" data-teacher-student="${st.id}" style="font-weight:700;color:${hasReport?'#b91c1c':'#15803d'}">${st.nombre||''}</button></td><td>${st.email||''}</td>`;
+    tr.innerHTML=`<td>${selected}</td><td><button type="button" class="link-btn" data-teacher-student="${st.id}" style="font-weight:700;color:${hasReport?'#b91c1c':'#15803d'}">${st.nombre||''}</button></td><td>${st.email||''}</td>`;
     tb.appendChild(tr);
   });
 }
@@ -606,6 +632,10 @@ async function showTeacherStudentReports(studentId){
           <div><strong>Clase:</strong> ${x.clase || ''}</div>
           <div><strong>Reporte:</strong> ${x.reporte || ''}</div>
           <div><strong>Comentario:</strong> ${x.comentario || 'Sin comentario'}</div>
+          <div><strong>Origen:</strong> ${x.origen || 'manual'}</div>
+          ${((x.origen || 'manual') === 'manual' && Number(x.docente_id) === Number(currentUser?.id))
+            ? `<button type="button" data-del-report="${x.id}" style="margin-top:8px">Eliminar reporte</button>`
+            : ''}
         </div>
       `).join('')}
     </div>
@@ -613,7 +643,23 @@ async function showTeacherStudentReports(studentId){
   await Swal.fire({
     title: `Reportes de ${alumno.nombre}`,
     html,
-    width: 760
+    width: 760,
+    didOpen: () => {
+      document.querySelectorAll('[data-del-report]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const repId = btn.getAttribute('data-del-report');
+          if (!repId) return;
+          const ask = await Swal.fire({ icon: 'warning', title: 'Eliminar reporte', text: 'Esta accion no se puede deshacer', showCancelButton: true });
+          if (!ask.isConfirmed) return;
+          const del = await api(`api/student_reports.php?id=${encodeURIComponent(repId)}`, { method: 'DELETE' });
+          if (!del.ok) return alertErr(del.message);
+          await loadTeacherReportsToday();
+          renderTeacherAttendanceList();
+          Swal.close();
+          await showTeacherStudentReports(studentId);
+        });
+      });
+    }
   });
 }
 function renderTeacherSummary(){
@@ -705,7 +751,46 @@ function downloadTeacherSchedulePdf() {
   pdf.save('horario-grado.pdf');
 }
 async function loadMyStudents(){ const r=await api('api/my_students.php'); if(!r.ok) return; myStudentsCache=Array.isArray(r.data)?r.data:[]; const s=document.getElementById('reportAlumno'); if(s){ s.innerHTML='<option value="">Seleccione alumno</option>'; myStudentsCache.forEach(st=>{const op=document.createElement('option'); op.value=st.id; op.textContent=`${st.nombre} (${st.email})`; s.appendChild(op);}); } await loadTeacherReportsToday(); renderTeacherSummary(); renderTeacherAttendanceList(); }
-async function loadStudentReports(){ const r=await api('api/student_reports.php'); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#myReportsTable tbody'); if(!tb) return; tb.innerHTML=''; r.data.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.docente}</td><td>${x.reporte}</td><td>${x.comentario||''}</td>`; tb.appendChild(tr);}); }
+async function loadTeacherAttendances(dateValue = ''){
+  const p = new URLSearchParams();
+  const selected = dateValue || document.getElementById('teacherAttendanceDate')?.value || dateISO(new Date());
+  if (selected) p.set('fecha', selected);
+  const r = await api(`api/report.php?${p.toString()}`);
+  if(!r.ok) return alertErr(r.message);
+  const tb = document.querySelector('#teacherAttendanceTable tbody');
+  if(!tb) return;
+  const rows = Array.isArray(r.data) ? r.data : [];
+  tb.innerHTML = '';
+  if (!rows.length) {
+    const tr=document.createElement('tr');
+    tr.innerHTML = '<td colspan="4">No hay asistencias registradas.</td>';
+    tb.appendChild(tr);
+    return;
+  }
+  rows.forEach(x=>{
+    const tok = String(x.sesion_token || '');
+    let tipo = 'Asistencia';
+    if (tok.endsWith('-op1')) tipo = 'Entrada puntual';
+    else if (tok.endsWith('-op2')) tipo = 'Entrada tarde';
+    else if (tok.endsWith('-op4')) tipo = 'Salida del colegio';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${x.fecha||''}</td><td>${x.alumno||''}</td><td>${tipo}</td><td>${x.registrado_en||''}</td>`;
+    tb.appendChild(tr);
+  });
+}
+async function loadStudentReports(dateValue = ''){ const p=new URLSearchParams(); const selected=dateValue||document.getElementById('studentReportsDate')?.value||''; if(selected) p.set('fecha',selected); const r=await api(`api/student_reports.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#myReportsTable tbody'); if(!tb) return; tb.innerHTML=''; const rows=Array.isArray(r.data)?r.data:[]; if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="4">No hay reportes registrados.</td>'; tb.appendChild(tr); return; } rows.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.reporte}</td><td>${x.comentario||''}</td>`; tb.appendChild(tr);}); }
+function renderStudentSummary(){
+  const n=document.getElementById('studentNivel');
+  const g=document.getElementById('studentGrado');
+  const s=document.getElementById('studentSeccion');
+  const d=document.getElementById('studentDocente');
+  if(!n||!g||!s||!d) return;
+  const c=classesCache[0]||null;
+  n.textContent=c?.nivel||'-';
+  g.textContent=c?.grado||'-';
+  s.textContent=c?.seccion||'-';
+  d.textContent=c?.docente||'-';
+}
 
 function initControlScanner(){
   if (scannerStarted || typeof Html5Qrcode === 'undefined') return;
@@ -715,17 +800,40 @@ function initControlScanner(){
   const qr = new Html5Qrcode('reader');
   qr.start(
     { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 220, height: 220 } },
+    { fps: 10, qrbox: undefined },
     async (decodedText) => {
-      const claseId = Number(document.getElementById('controlClase')?.value || 0);
-      if (!claseId) return alertErr('Selecciona una clase antes de escanear');
+      if (controlScanCooldown) return;
+      controlScanCooldown = true;
       const r = await api('api/control_mark_attendance.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clase_id: claseId, qr_data: decodedText })
+        body: JSON.stringify({ qr_data: decodedText })
       });
-      if (!r.ok) return alertErr(r.message);
-      alertOk(`${r.message}: ${r.data?.alumno || ''}`);
+      if (!r.ok) {
+        alertErr(r.message);
+      } else {
+        const d = r.data || {};
+        const nombre = document.getElementById('cInfoNombre');
+        const nivel = document.getElementById('cInfoNivel');
+        const grado = document.getElementById('cInfoGrado');
+        const seccion = document.getElementById('cInfoSeccion');
+        const box = document.getElementById('controlInfoBox');
+        if (nombre) nombre.textContent = d.alumno || '-';
+        if (nivel) nivel.textContent = d.nivel || '-';
+        if (grado) grado.textContent = d.grado || '-';
+        if (seccion) seccion.textContent = d.seccion || '-';
+        if (box) box.classList.add('active');
+
+        if (controlInfoTimer) clearTimeout(controlInfoTimer);
+        controlInfoTimer = setTimeout(() => {
+          if (nombre) nombre.textContent = '-';
+          if (nivel) nivel.textContent = '-';
+          if (grado) grado.textContent = '-';
+          if (seccion) seccion.textContent = '-';
+          if (box) box.classList.remove('active');
+        }, 3000);
+      }
+      setTimeout(() => { controlScanCooldown = false; }, 3000);
     },
     () => {}
   ).catch(() => alertErr('No se pudo iniciar la camara.'));
@@ -824,6 +932,7 @@ document.getElementById('classSeccion')?.addEventListener('change',()=>{ updateH
 document.getElementById('classDia')?.addEventListener('change',()=>{ updateHorarioLocks(); renderAssignBoard(); });
 document.getElementById('gradeSeccion')?.addEventListener('input',()=>{ updateGradeLocks(); });
 document.getElementById('gradeCarrera')?.addEventListener('input',()=>{ updateGradeLocks(); });
+document.getElementById('gradeCarreraExistente')?.addEventListener('change',(e)=>{ const c=document.getElementById('gradeCarrera'); if(c && e.target.value) c.value=e.target.value; updateGradeLocks(); });
 document.getElementById('adminNombres')?.addEventListener('input',e=>{ e.target.value=sanitizeLetters(e.target.value); const u=document.getElementById('adminUsername'); if(u) u.value=genUserPreview(document.getElementById('adminNombres').value,document.getElementById('adminApellidos').value);});
 document.getElementById('adminApellidos')?.addEventListener('input',e=>{ e.target.value=sanitizeLetters(e.target.value); const u=document.getElementById('adminUsername'); if(u) u.value=genUserPreview(document.getElementById('adminNombres').value,document.getElementById('adminApellidos').value);});
 document.getElementById('alumnoFechaNac')?.addEventListener('change',e=>{
@@ -847,7 +956,63 @@ document.getElementById('repFecha')?.addEventListener('change', (e) => {
     Swal.fire({ icon: 'warning', title: 'Fecha invalida', text: 'No puedes seleccionar una fecha posterior a hoy.' });
   }
 });
-document.getElementById('loadMyReports')?.addEventListener('click', loadStudentReports);
+document.querySelectorAll('[data-student-view]').forEach(b=>b.addEventListener('click', async ()=>{ switchStudentView(b.dataset.studentView); if(b.dataset.studentView==='reports') await loadStudentReports(); if(b.dataset.studentView==='attendances') await loadStudentAttendances(); }));
+document.getElementById('studentAttendanceDate')?.addEventListener('change', async (e) => {
+  const max = e.target.max || dateISO(new Date());
+  if (e.target.value && e.target.value > max) {
+    e.target.value = max;
+    Swal.fire({ icon:'warning', title:'Fecha invalida', text:'No puedes elegir un dia posterior al actual.' });
+  }
+  await loadStudentAttendances(e.target.value || '');
+});
+document.getElementById('studentReportsDate')?.addEventListener('change', async (e) => {
+  const max = e.target.max || dateISO(new Date());
+  if (e.target.value && e.target.value > max) {
+    e.target.value = max;
+    Swal.fire({ icon:'warning', title:'Fecha invalida', text:'No puedes elegir un dia posterior al actual.' });
+  }
+  await loadStudentReports(e.target.value || '');
+});
+document.getElementById('studentAttendanceTodayBtn')?.addEventListener('click', async () => {
+  const el=document.getElementById('studentAttendanceDate'); if(!el) return;
+  const today=dateISO(new Date()); el.value=today; await loadStudentAttendances(today);
+});
+document.getElementById('studentReportsTodayBtn')?.addEventListener('click', async () => {
+  const el=document.getElementById('studentReportsDate'); if(!el) return;
+  const today=dateISO(new Date()); el.value=today; await loadStudentReports(today);
+});
+document.getElementById('teacherReportDate')?.addEventListener('change', async (e) => {
+  const max = e.target.max || dateISO(new Date());
+  if (e.target.value && e.target.value > max) {
+    e.target.value = max;
+    Swal.fire({ icon: 'warning', title: 'Fecha invalida', text: 'No puedes elegir un dia posterior al actual.' });
+  }
+  await loadTeacherReportsToday(e.target.value || '');
+  renderTeacherAttendanceList();
+});
+document.getElementById('teacherAttendanceDate')?.addEventListener('change', async (e) => {
+  const max = e.target.max || dateISO(new Date());
+  if (e.target.value && e.target.value > max) {
+    e.target.value = max;
+    Swal.fire({ icon: 'warning', title: 'Fecha invalida', text: 'No puedes elegir un dia posterior al actual.' });
+  }
+  await loadTeacherAttendances(e.target.value || '');
+});
+document.getElementById('teacherReportTodayBtn')?.addEventListener('click', async () => {
+  const teacherDate = document.getElementById('teacherReportDate');
+  if (!teacherDate) return;
+  const today = dateISO(new Date());
+  teacherDate.value = today;
+  await loadTeacherReportsToday(today);
+  renderTeacherAttendanceList();
+});
+document.getElementById('teacherAttendanceTodayBtn')?.addEventListener('click', async () => {
+  const dateInput = document.getElementById('teacherAttendanceDate');
+  if (!dateInput) return;
+  const today = dateISO(new Date());
+  dateInput.value = today;
+  await loadTeacherAttendances(today);
+});
 
 document.querySelector('#usersTable')?.addEventListener('click', async (e)=>{
   const qrId=e.target.getAttribute('data-qr'); const editId=e.target.getAttribute('data-edit'); const delId=e.target.getAttribute('data-del'); const credId=e.target.getAttribute('data-cred');
@@ -871,11 +1036,10 @@ document.getElementById('adminClassForm')?.addEventListener('submit', async (e)=
 document.getElementById('adminGradeForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={nivel:document.getElementById('gradeNivel').value,grado_primaria:document.getElementById('gradePrimaria').value,grado_basico:document.getElementById('gradeBasico').value,grado_diversificado:document.getElementById('gradeDiversificado').value,carrera:document.getElementById('gradeCarrera').value.trim(),seccion:document.getElementById('gradeSeccion').value.trim(),cupos:Number(document.getElementById('gradeCupos').value),docente_guia_id:Number(document.getElementById('gradeDocenteGuia').value)}; const r=await api('api/grades.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); toggleGradeFields(); await loadGrades(); alertOk(r.message); });
 document.getElementById('reportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const p=new URLSearchParams(); const f=document.getElementById('repFecha')?.value; const a=document.getElementById('repAlumno')?.value; const g=document.getElementById('repGrado')?.value; const n=document.getElementById('repNivel')?.value; const s=document.getElementById('repSeccion')?.value; if(f) p.set('fecha',f); if(a) p.set('alumno_id',a); if(g) p.set('grado',g); if(n) p.set('nivel',n); if(s) p.set('seccion',s); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#reportTable tbody'); if(!tb) return; tb.innerHTML=''; const rows=Array.isArray(r.data)?r.data:[]; if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="6">No hay registros de asistencia</td>'; tb.appendChild(tr); return; } rows.forEach(x=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha||''}</td><td>${x.nivel||''}</td><td>${x.grado||''}</td><td>${x.seccion||''}</td><td>${x.alumno||''}</td><td>${x.registrado_en||''}</td>`; tb.appendChild(tr);}); });
 
-document.getElementById('teacherReportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); });
-
 document.getElementById('studentReportForm')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const payload={clase_id:Number(document.getElementById('reportClaseDocente').value),alumno_id:Number(document.getElementById('reportAlumno').value),reporte:document.getElementById('reportTexto').value,comentario:document.getElementById('commentTexto').value}; const r=await api('api/student_reports.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) return alertErr(r.message); e.target.reset(); await loadTeacherReportsToday(); renderTeacherAttendanceList(); alertOk(r.message); });
 
-document.getElementById('studentReportFormOnly')?.addEventListener('submit', async (e)=>{ e.preventDefault(); const p=new URLSearchParams(); const f=document.getElementById('sRepFecha')?.value; if(f) p.set('fecha',f); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#studentOnlyAttendanceTable tbody'); if(!tb) return; tb.innerHTML=''; r.data.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.codigo}</td><td>${x.estado}</td><td>${x.registrado_en}</td>`; tb.appendChild(tr);}); });
+async function loadStudentAttendances(){ const r=await api('api/report.php'); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#studentOnlyAttendanceTable tbody'); if(!tb) return; tb.innerHTML=''; const rows=Array.isArray(r.data)?r.data:[]; if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="5">No hay asistencias registradas.</td>'; tb.appendChild(tr); return; } rows.forEach(x=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha}</td><td>${x.clase}</td><td>${x.codigo}</td><td>${x.estado}</td><td>${x.registrado_en}</td>`; tb.appendChild(tr);}); }
+async function loadStudentAttendances(dateValue = ''){ const p=new URLSearchParams(); const selected=dateValue||document.getElementById('studentAttendanceDate')?.value||''; if(selected) p.set('fecha',selected); const r=await api(`api/report.php?${p.toString()}`); if(!r.ok) return alertErr(r.message); const tb=document.querySelector('#studentOnlyAttendanceTable tbody'); if(!tb) return; tb.innerHTML=''; const rows=Array.isArray(r.data)?r.data:[]; if(!rows.length){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="3">No hay asistencias registradas.</td>'; tb.appendChild(tr); return; } rows.forEach(x=>{ const tok=String(x.sesion_token||''); let tipo='Asistencia'; if(tok.endsWith('-op1')) tipo='Entrada puntual'; else if(tok.endsWith('-op2')) tipo='Entrada tarde'; else if(tok.endsWith('-op4')) tipo='Salida del colegio'; const tr=document.createElement('tr'); tr.innerHTML=`<td>${x.fecha||''}</td><td>${tipo}</td><td>${x.registrado_en||''}</td>`; tb.appendChild(tr);}); }
 
 async function init(){
   applyTheme(localStorage.getItem('theme') || 'light');
@@ -887,12 +1051,36 @@ async function init(){
   if(!s.ok||!s.data) return location.href='index.html';
   currentUser=s.data;
   userInfo.textContent=`${s.data.nombre} (${s.data.rol}) - ${s.data.email}`;
+  const teacherDate = document.getElementById('teacherReportDate');
+  const teacherAttendanceDate = document.getElementById('teacherAttendanceDate');
+  const studentAttendanceDate = document.getElementById('studentAttendanceDate');
+  const studentReportsDate = document.getElementById('studentReportsDate');
+  if (teacherDate) {
+    const today = dateISO(new Date());
+    teacherDate.max = today;
+    if (!teacherDate.value) teacherDate.value = today;
+  }
+  if (teacherAttendanceDate) {
+    const today = dateISO(new Date());
+    teacherAttendanceDate.max = today;
+    if (!teacherAttendanceDate.value) teacherAttendanceDate.value = today;
+  }
+  if (studentAttendanceDate) {
+    const today = dateISO(new Date());
+    studentAttendanceDate.max = today;
+    if (!studentAttendanceDate.value) studentAttendanceDate.value = today;
+  }
+  if (studentReportsDate) {
+    const today = dateISO(new Date());
+    studentReportsDate.max = today;
+    if (!studentReportsDate.value) studentReportsDate.value = today;
+  }
   await loadClasses();
   await loadGrades();
 
   if(s.data.rol==='admin'){ adminModule.classList.remove('hidden'); switchAdminView('users'); await loadUsers(); toggleRoleFields(); toggleGradeFields(); }
-  if(s.data.rol==='docente'){ teacherModule.classList.remove('hidden'); switchTeacherView('attendance'); renderTeacherSummary(); renderTeacherScheduleBoard(); await loadMyStudents(); renderTeacherScheduleBoard(); }
-  if(s.data.rol==='alumno'||s.data.rol==='estudiante'){ studentModule.classList.remove('hidden'); }
+  if(s.data.rol==='docente'){ teacherModule.classList.remove('hidden'); switchTeacherView('attendances'); renderTeacherSummary(); renderTeacherScheduleBoard(); await loadMyStudents(); renderTeacherScheduleBoard(); }
+  if(s.data.rol==='alumno'||s.data.rol==='estudiante'){ studentModule.classList.remove('hidden'); switchStudentView('attendances'); renderStudentSummary(); await loadStudentAttendances(document.getElementById('studentAttendanceDate')?.value||''); await loadStudentReports(document.getElementById('studentReportsDate')?.value||''); renderStudentSummary(); }
   if(s.data.rol==='control'){ controlModule.classList.remove('hidden'); initControlScanner(); }
 }
 

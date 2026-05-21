@@ -11,9 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     require_login();
     $user = $_SESSION['user'];
 
-    $base = "SELECT c.id, c.nombre, c.codigo, c.horario, c.dia, c.grado, c.nivel, c.seccion, c.ciclo_escolar, c.cupos,
+    $base = "SELECT c.id, c.nombre, c.codigo, c.horario, c.dia, c.grado, c.nivel, c.seccion, c.ciclo_escolar, c.cupos, d.nombre AS docente,
                 (c.cupos - COUNT(i.id)) AS cupos_disponibles
              FROM clases c
+             LEFT JOIN usuarios d ON d.id = c.docente_id
              LEFT JOIN inscripciones i ON i.clase_id = c.id";
 
     if ($user['rol'] === 'docente') {

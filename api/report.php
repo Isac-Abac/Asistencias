@@ -16,8 +16,9 @@ $nivel = $_GET['nivel'] ?? '';
 $seccion = $_GET['seccion'] ?? '';
 $ciclo = $_GET['ciclo_escolar'] ?? '';
 
-$sql = "SELECT a.id, a.fecha, a.estado, a.registrado_en, u.id AS alumno_id, u.nombre AS alumno, u.email, c.nombre AS clase, c.codigo, c.grado, c.nivel, c.seccion, c.ciclo_escolar
+$sql = "SELECT a.id, a.fecha, a.estado, a.registrado_en, sq.token AS sesion_token, u.id AS alumno_id, u.nombre AS alumno, u.email, c.nombre AS clase, c.codigo, c.grado, c.nivel, c.seccion, c.ciclo_escolar
         FROM asistencias a
+        INNER JOIN sesiones_qr sq ON sq.id = a.sesion_qr_id
         INNER JOIN usuarios u ON u.id = a.estudiante_id
         INNER JOIN clases c ON c.id = a.clase_id
         WHERE 1=1";

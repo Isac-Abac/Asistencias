@@ -29,7 +29,7 @@
       </div>
       <div id="adminView-users" class="admin-view is-active view-anim"><div class="inline-tools"><button id="loadUsersBtn" type="button">Recargar lista usuarios</button><input id="userSearchName" type="text" placeholder="Buscar usuario por nombre"></div><div class="table-wrap"><table id="usersTable"><thead><tr><th>ID</th><th>Nombre</th><th>Usuario</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody></tbody></table></div></div>
       <div id="adminView-register" class="admin-view hidden"><form id="adminCreateUserForm"><select id="adminRol" required><option value="alumno">Alumno</option><option value="docente">Docente</option></select><input id="adminNombres" placeholder="Nombres" required><input id="adminApellidos" placeholder="Apellidos" required><input id="adminUsername" placeholder="Nombre usuario (auto)" readonly><input id="adminEmail" type="email" placeholder="Correo" required><input id="adminPass" type="password" placeholder="Contrasena" required><input id="docenteFechaNac" type="date" placeholder="Fecha nacimiento docente"><input id="docenteEdad" placeholder="Edad docente" readonly><div id="alumnoExtraFields"><input id="alumnoFechaNac" type="date" placeholder="Fecha nacimiento"><input id="alumnoEdad" placeholder="Edad" readonly><select id="alumnoNivel"><option value="">Nivel</option><option>Primaria</option><option>Basico</option><option>Diversificado</option></select><select id="alumnoGrado"><option value="">Nombre de grado</option></select><select id="alumnoSeccion"><option value="">Seccion</option></select><select id="alumnoCiclo"><option value="">Ciclo escolar</option><option>2025</option><option>2026</option><option>2027</option><option>2028</option></select><input id="alumnoCuposDisp" placeholder="Cupos disponibles" readonly></div><button type="submit">Registrar usuario</button></form></div>
-      <div id="adminView-create-grade" class="admin-view hidden"><form id="adminGradeForm"><select id="gradeNivel" required><option value="">Seleccionar nivel</option><option value="Primaria">Primaria</option><option value="Basico">Basico</option><option value="Diversificado">Diversificado</option></select><select id="gradePrimaria" class="hidden"><option value="">Grado primaria</option><option value="1ro primaria">1ro primaria</option><option value="2do primaria">2do primaria</option><option value="3ro primaria">3ro primaria</option><option value="4to primaria">4to primaria</option><option value="5to primaria">5to primaria</option><option value="6to primaria">6to primaria</option></select><select id="gradeBasico" class="hidden"><option value="">Grado basico</option><option value="1ro basico">1ro basico</option><option value="2do basico">2do basico</option><option value="3ro basico">3ro basico</option></select><select id="gradeDiversificado" class="hidden"><option value="">Grado diversificado</option><option value="4to diversificado">4to diversificado</option><option value="5to diversificado">5to diversificado</option><option value="6to diversificado">6to diversificado</option></select><input id="gradeCarrera" class="hidden" placeholder="Nombre de carrera (Diversificado)"><input id="gradeSeccion" placeholder="Seccion (ej: A)" maxlength="1" required><input id="gradeCupos" type="number" min="1" max="30" placeholder="Cuantos estudiantes por clase (max 30)" required><select id="gradeDocenteGuia" required><option value="">Docente guia</option></select><button type="submit">Crear grado</button></form><p class="muted-note">Primaria y Basico usan lista de grados. Diversificado usa grado + nombre de carrera.</p><div class="table-wrap"><table id="gradesTable"><thead><tr><th>ID</th><th>Nivel</th><th>Grado/Carrera</th><th>Seccion</th><th>Cupos</th><th>Docente guia</th></tr></thead><tbody></tbody></table></div></div>
+      <div id="adminView-create-grade" class="admin-view hidden"><form id="adminGradeForm"><select id="gradeNivel" required><option value="">Seleccionar nivel</option><option value="Primaria">Primaria</option><option value="Basico">Basico</option><option value="Diversificado">Diversificado</option></select><select id="gradePrimaria" class="hidden"><option value="">Grado primaria</option><option value="1ro primaria">1ro primaria</option><option value="2do primaria">2do primaria</option><option value="3ro primaria">3ro primaria</option><option value="4to primaria">4to primaria</option><option value="5to primaria">5to primaria</option><option value="6to primaria">6to primaria</option></select><select id="gradeBasico" class="hidden"><option value="">Grado basico</option><option value="1ro basico">1ro basico</option><option value="2do basico">2do basico</option><option value="3ro basico">3ro basico</option></select><select id="gradeDiversificado" class="hidden"><option value="">Grado diversificado</option><option value="4to diversificado">4to diversificado</option><option value="5to diversificado">5to diversificado</option><option value="6to diversificado">6to diversificado</option></select><div class="career-row hidden" id="gradeCarreraRow"><input id="gradeCarrera" placeholder="Nombre de carrera (Diversificado)"><select id="gradeCarreraExistente"><option value="">Elegir carrera existente</option></select></div><input id="gradeSeccion" placeholder="Seccion (ej: A)" maxlength="1" required><input id="gradeCupos" type="number" min="1" max="30" placeholder="Cuantos estudiantes por clase (max 30)" required><select id="gradeDocenteGuia" required><option value="">Docente guia</option></select><button type="submit">Crear grado</button></form><p class="muted-note">Primaria y Basico usan lista de grados. Diversificado usa grado + nombre de carrera.</p><div class="table-wrap"><table id="gradesTable"><thead><tr><th>ID</th><th>Nivel</th><th>Grado/Carrera</th><th>Seccion</th><th>Cupos</th><th>Docente guia</th></tr></thead><tbody></tbody></table></div></div>
       <div id="adminView-attendance" class="admin-view hidden"><form id="reportForm"><select id="repNivel"><option value="">Nivel</option></select><select id="repGrado"><option value="">Grado</option></select><select id="repSeccion"><option value="">Seccion</option></select><select id="repAlumno"><option value="">Nombre de alumno</option></select><input id="repFecha" type="date" aria-label="Fecha (opcional)" title="Fecha (opcional)"><small class="muted-note">Fecha (opcional): sin fecha muestra todo; con fecha filtra ese dia.</small><button type="submit">Consultar</button></form><div class="table-wrap"><table id="reportTable"><thead><tr><th>Fecha</th><th>Nivel</th><th>Grado</th><th>Seccion</th><th>Alumno</th><th>Hora</th></tr></thead><tbody></tbody></table></div></div>
       <div id="adminView-create-class" class="admin-view hidden"><form id="adminClassForm"><select id="classNivel" required><option value="">Nivel</option><option>Primaria</option><option>Basico</option><option>Diversificado</option></select><select id="classGrado" required><option value="">Nombre de grado</option></select><select id="classSeccion" required><option value="">Seccion</option></select><input id="classNombre" placeholder="Nombre de curso" required><select id="classDia" required><option value="">Dia</option><option>Lunes</option><option>Martes</option><option>Miercoles</option><option>Jueves</option><option>Viernes</option></select><select id="classHorario" required><option value="">Horario</option><option>07:30-08:10</option><option>08:10-08:50</option><option>08:50-09:30</option><option>09:30-10:05</option><option>10:45-11:20</option><option>11:20-11:55</option><option>11:55-12:30</option></select><button type="submit">Asignar curso</button></form><div id="assignBoard" class="assign-board"><div id="assignBoardTitle" class="assign-board-title">Horario del grado</div><div class="table-wrap"><table id="assignBoardTable"><thead></thead><tbody></tbody></table></div></div></div>
       <div id="adminView-reports-control" class="admin-view hidden">
@@ -76,8 +76,18 @@
 
     <section id="controlModule" class="card hidden">
       <h2>Control: Escanear QR</h2>
-      <form id="controlScanForm"><select id="controlClase" required><option value="">Seleccione clase</option></select></form>
-      <div id="reader" class="reader"></div>
+      <div class="control-layout">
+        <div class="control-scanner-wrap">
+          <div id="reader" class="reader"></div>
+        </div>
+        <div class="control-info" id="controlInfoBox">
+          <h3>Ultimo escaneo</h3>
+          <p><strong>Nombre:</strong> <span id="cInfoNombre">-</span></p>
+          <p><strong>Nivel:</strong> <span id="cInfoNivel">-</span></p>
+          <p><strong>Grado:</strong> <span id="cInfoGrado">-</span></p>
+          <p><strong>Seccion:</strong> <span id="cInfoSeccion">-</span></p>
+        </div>
+      </div>
     </section>
 
     <section id="teacherModule" class="card hidden">
@@ -89,11 +99,16 @@
         <div class="teacher-item"><strong>Cantidad de alumnos:</strong> <span id="teacherCantidad">0</span></div>
       </div>
       <div class="teacher-tabs">
-        <button class="teacher-tab active" data-teacher-view="attendance">Consultar asistencias</button>
+        <button class="teacher-tab active" data-teacher-view="attendances">Consultar asistencias</button>
+        <button class="teacher-tab" data-teacher-view="attendance">Consultar reportes</button>
         <button class="teacher-tab" data-teacher-view="reports">Reporte por cursos</button>
         <button class="teacher-tab" data-teacher-view="schedule">Horario de grado</button>
       </div>
       <div id="teacherView-attendance" class="teacher-view">
+        <form id="teacherReportDateForm" class="date-toolbar">
+          <input id="teacherReportDate" type="date">
+          <button id="teacherReportTodayBtn" type="button">Hoy</button>
+        </form>
         <div class="table-wrap"><table id="teacherReportTable"><thead><tr><th>Fecha</th><th>Alumno</th><th>Email</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div id="teacherView-reports" class="teacher-view hidden">
@@ -104,6 +119,18 @@
           <textarea id="commentTexto" placeholder="Comentario"></textarea>
           <button type="submit">Guardar reporte/comentario</button>
         </form>
+      </div>
+      <div id="teacherView-attendances" class="teacher-view hidden">
+        <form id="teacherAttendanceDateForm" class="date-toolbar">
+          <input id="teacherAttendanceDate" type="date">
+          <button id="teacherAttendanceTodayBtn" type="button">Hoy</button>
+        </form>
+        <div class="table-wrap">
+          <table id="teacherAttendanceTable">
+            <thead><tr><th>Fecha</th><th>Alumno</th><th>Tipo</th><th>Hora</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
       <div id="teacherView-schedule" class="teacher-view hidden">
         <div id="teacherScheduleBoard" class="assign-board">
@@ -116,7 +143,33 @@
       </div>
     </section>
 
-    <section id="studentModule" class="card hidden"><h2>Alumno</h2><form id="studentReportFormOnly"><input id="sRepFecha" type="date"><button type="submit">Consultar mis asistencias</button></form><div class="table-wrap"><table id="studentOnlyAttendanceTable"><thead><tr><th>Fecha</th><th>Clase</th><th>Codigo</th><th>Estado</th><th>Hora</th></tr></thead><tbody></tbody></table></div><button id="loadMyReports" type="button">Ver mis reportes y comentarios</button><div class="table-wrap"><table id="myReportsTable"><thead><tr><th>Fecha</th><th>Clase</th><th>Docente</th><th>Reporte</th><th>Comentario</th></tr></thead><tbody></tbody></table></div></section>
+    <section id="studentModule" class="card hidden">
+      <h2>Alumno</h2>
+      <div class="teacher-summary">
+        <div class="teacher-item"><strong>Nivel:</strong> <span id="studentNivel">-</span></div>
+        <div class="teacher-item"><strong>Grado:</strong> <span id="studentGrado">-</span></div>
+        <div class="teacher-item"><strong>Seccion:</strong> <span id="studentSeccion">-</span></div>
+        <div class="teacher-item"><strong>Docente:</strong> <span id="studentDocente">-</span></div>
+      </div>
+      <div class="teacher-tabs">
+        <button class="teacher-tab active" data-student-view="attendances">Consultar mis asistencias</button>
+        <button class="teacher-tab" data-student-view="reports">Consultar mis reportes</button>
+      </div>
+      <div id="studentView-attendances" class="teacher-view">
+        <form id="studentAttendanceDateForm" class="date-toolbar">
+          <input id="studentAttendanceDate" type="date">
+          <button id="studentAttendanceTodayBtn" type="button">Hoy</button>
+        </form>
+        <div class="table-wrap"><table id="studentOnlyAttendanceTable"><thead><tr><th>Fecha</th><th>Tipo</th><th>Hora</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div id="studentView-reports" class="teacher-view hidden">
+        <form id="studentReportsDateForm" class="date-toolbar">
+          <input id="studentReportsDate" type="date">
+          <button id="studentReportsTodayBtn" type="button">Hoy</button>
+        </form>
+        <div class="table-wrap"><table id="myReportsTable"><thead><tr><th>Fecha</th><th>Curso</th><th>Reporte</th><th>Comentario</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
   </main>
   <script src="assets/js/dashboard.js"></script>
 </body>

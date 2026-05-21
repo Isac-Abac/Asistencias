@@ -129,7 +129,38 @@ button:hover { background: var(--primary-2); }
 }
 .hidden { display: none; }
 .msg { min-height: 20px; color: var(--danger); }
-.reader { width: 100%; max-width: 380px; }
+.reader { width: 100%; height: 100%; min-height: 360px; }
+#reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+#reader__scan_region { min-height: 320px; }
+
+.control-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 560px) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.control-scanner-wrap {
+  border: 2px solid #6b21a8;
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 380px;
+  background: #0f172a;
+}
+.control-info {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--card) 92%, #cbd5e1 8%);
+  min-height: 220px;
+  opacity: 0.35;
+  transition: opacity 180ms ease, transform 180ms ease;
+  transform: translateY(4px);
+}
+.control-info h3 { margin-top: 0; }
+.control-info.active {
+  opacity: 1;
+  transform: translateY(0);
+}
 #qrBox { margin-top: 12px; }
 .table-wrap { overflow-x: auto; }
 table {
@@ -298,6 +329,14 @@ textarea { min-height: 90px; resize: vertical; }
   gap: 6px;
   font-size: 14px;
 }
+#gradeCarreraRow {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 220px;
+  gap: 8px;
+}
+#gradeCarreraRow.hidden {
+  display: none !important;
+}
 #reportsControlForm input[readonly] {
   background: color-mix(in srgb, var(--card) 70%, #94a3b8 30%);
 }
@@ -353,6 +392,19 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .teacher-view.view-anim {
   animation: fadeSlide .28s ease;
+}
+.date-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.date-toolbar input[type="date"] {
+  flex: 1 1 auto;
+}
+.date-toolbar button {
+  margin-left: auto;
+  min-width: 84px;
 }
 
 
